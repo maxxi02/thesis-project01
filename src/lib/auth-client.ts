@@ -7,7 +7,7 @@ import {
   delivery,
   user,
   ac,
-} from "@/better-auth-plugins/permissions";
+} from "@/better-auth/permissions";
 
 const baseUrl =
   process.env.NODE_ENV === "development"
