@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import React from "react";
 
@@ -6,8 +7,15 @@ const LayoutWrapper = ({
 }: Readonly<{ children: React.ReactNode }>) => {
   return (
     <>
-      {children}
-      <Toaster position="bottom-center" richColors={true} />
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        {children}
+        <Toaster position="bottom-center" richColors={true} />
+      </ThemeProvider>
     </>
   );
 };
