@@ -36,7 +36,7 @@ export function SiteHeader({ session }: { session: Session }) {
         />
         <h1 className="text-base font-medium">{pageTitle}</h1>
         <div className="ml-auto flex items-center gap-3">
-          <div className="text-right">
+          <div className="text-right sm:block hidden">
             <p className="text-sm font-medium">{session.user.name}</p>
 
             <p className="text-xs text-muted-foreground">
