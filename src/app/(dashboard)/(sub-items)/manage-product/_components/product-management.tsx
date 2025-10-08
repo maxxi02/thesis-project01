@@ -87,6 +87,7 @@ export default function ProductManagement() {
   const sseConnectionRef = useRef<EventSource | null>(null);
   const [userSession, setUserSession] = useState<Session | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [deliveryPersonnel, setDeliveryPersonnel] = useState<
     DeliveryPersonnel[]
   >([]);
@@ -99,6 +100,7 @@ export default function ProductManagement() {
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showObjectDetectionModal, setShowObjectDetectionModal] =
     useState(false);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [addressInput, setAddressInput] = useState("");
@@ -108,6 +110,7 @@ export default function ProductManagement() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState("cards");
   const [mounted, setMounted] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
 
   const [shipmentData, setShipmentData] = useState<ShipmentData>({
     quantity: "",
@@ -156,6 +159,62 @@ export default function ProductManagement() {
       return true;
     }
     return false;
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch("/api/categories");
+      if (handleAuthError(response)) return;
+
+      const data = await response.json();
+      setCategories(
+        data.categories?.map((c: { name: string }) => c.name) || []
+      );
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
+      toast.error("Failed to fetch categories");
+    }
+  };
+
+  const addCategory = async () => {
+    if (!newCategory.trim()) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategory.trim() }),
+      });
+
+      if (handleAuthError(response)) return;
+
+      if (response.ok) {
+        toast.success("Category added successfully");
+        setShowAddCategoryModal(false);
+        setNewCategory("");
+        await fetchCategories();
+        if (showAddProductModal) {
+          setNewProductData({
+            ...newProductData,
+            category: newCategory.trim(),
+          });
+        } else if (showEditModal) {
+          setEditProductData({
+            ...editProductData,
+            category: newCategory.trim(),
+          });
+        }
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to add category");
+      }
+    } catch (error) {
+      console.error("Error adding category:", error);
+      toast.error("Failed to add category");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchProducts = async () => {
@@ -705,6 +764,7 @@ export default function ProductManagement() {
   useEffect(() => {
     if (mounted) {
       fetchProducts();
+      fetchCategories();
       fetchDeliveryPersonnel();
     }
   }, [mounted]);
@@ -794,13 +854,9 @@ export default function ProductManagement() {
                     <Image
                       width={500}
                       height={500}
-                      src={product.image || "/placeholder-product.jpg"}
+                      src={product.image || ""}
                       alt={product.name}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "/placeholder-product.jpg";
-                      }}
                     />
                     <div className="absolute top-2 right-2">
                       {getStatusBadge(product.status!, product.stock)}
@@ -916,13 +972,9 @@ export default function ProductManagement() {
                             <Image
                               width={48}
                               height={48}
-                              src={product.image || "/placeholder-product.jpg"}
+                              src={product.image || ""}
                               alt={product.name}
                               className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src =
-                                  "/placeholder-product.jpg";
-                              }}
                             />
                           </div>
                         </TableCell>
@@ -1049,6 +1101,49 @@ export default function ProductManagement() {
         </DialogContent>
       </Dialog>
 
+      {/* Add Category Modal */}
+      <Dialog
+        open={showAddCategoryModal}
+        onOpenChange={setShowAddCategoryModal}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add New Category
+            </DialogTitle>
+            <DialogDescription>
+              Enter the name for the new category.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="new-category-name">Category Name</Label>
+              <Input
+                id="new-category-name"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="Enter category name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddCategoryModal(false);
+                setNewCategory("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={addCategory} disabled={!newCategory.trim()}>
+              Add Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add Product Modal */}
       <Dialog open={showAddProductModal} onOpenChange={setShowAddProductModal}>
         <DialogContent className="sm:max-w-[425px]">
@@ -1086,17 +1181,34 @@ export default function ProductManagement() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="new-category">Category</Label>
-              <Input
-                id="new-category"
-                value={newProductData.category}
-                onChange={(e) =>
-                  setNewProductData({
-                    ...newProductData,
-                    category: e.target.value,
-                  })
-                }
-                placeholder="Enter category"
-              />
+              <div className="flex flex-col gap-1">
+                <Select
+                  value={newProductData.category}
+                  onValueChange={(value) =>
+                    setNewProductData({ ...newProductData, category: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="self-start p-0 h-auto text-xs"
+                  onClick={() => setShowAddCategoryModal(true)}
+                >
+                  + Add New Category
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -1461,16 +1573,34 @@ export default function ProductManagement() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-category">Category</Label>
-              <Input
-                id="edit-category"
-                value={editProductData.category}
-                onChange={(e) =>
-                  setEditProductData({
-                    ...editProductData,
-                    category: e.target.value,
-                  })
-                }
-              />
+              <div className="flex flex-col gap-1">
+                <Select
+                  value={editProductData.category}
+                  onValueChange={(value) =>
+                    setEditProductData({ ...editProductData, category: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="self-start p-0 h-auto text-xs"
+                  onClick={() => setShowAddCategoryModal(true)}
+                >
+                  + Add New Category
+                </Button>
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-description">Description</Label>

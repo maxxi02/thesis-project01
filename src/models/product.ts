@@ -1,51 +1,5 @@
-import mongoose from "mongoose";
-
-// const shippingHistorySchema = new mongoose.Schema({
-//   quantityShipped: {
-//     type: Number,
-//     required: true,
-//     min: [1, "Quantity shipped must be at least 1"],
-//   },
-//   shippingDate: {
-//     type: Date,
-//     default: Date.now,
-//   },
-//   trackingNumber: {
-//     type: String,
-//     trim: true,
-//   },
-//   carrier: {
-//     type: String,
-//     trim: true,
-//   },
-//   destination: {
-//     type: String,
-//     trim: true,
-//   },
-//   notes: {
-//     type: String,
-//     trim: true,
-//   },
-//   shippedBy: {
-//     name: {
-//       type: String,
-//       required: true,
-//       trim: true,
-//     },
-//     email: {
-//       type: String,
-//       required: true,
-//       trim: true,
-//     },
-//   },
-//   status: {
-//     type: String,
-//     enum: ["pending", "shipped", "delivered", "cancelled"],
-//     default: "shipped",
-//   },
-// });
-
 // models/product.ts
+import mongoose from "mongoose";
 
 const productSchema = new mongoose.Schema(
   {
@@ -144,7 +98,9 @@ productSchema.pre(["findOneAndUpdate", "updateOne"], function (next) {
     }
   }
 
-  update.updatedAt = new Date();
+  // Note: timestamps: true already handles updatedAt, but if you want to set updatedBy, you can do it here
+  // For example, to set updatedBy, you'd need access to the session/user, which might require passing it via options
+
   next();
 });
 

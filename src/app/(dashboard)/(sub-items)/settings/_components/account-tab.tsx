@@ -20,6 +20,7 @@ import {
   Smartphone,
   CheckCircle2,
 } from "lucide-react";
+import QRCode from "react-qr-code";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Session } from "@/better-auth/auth-types";
@@ -50,6 +51,11 @@ export default function AccountTab({ session }: { session: Session }) {
   const [isEnabling2FA, setIsEnabling2FA] = useState(false);
   const [isDisabling2FA, setIsDisabling2FA] = useState(false);
   const [isCheckingTwoFactor, setIsCheckingTwoFactor] = useState(true);
+  const [showSetup, setShowSetup] = useState(false);
+  const [totpUri, setTotpUri] = useState<string | null>(null);
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Use useCallback to memoize the function and prevent unnecessary re-renders
   const checkTwoFactorStatus = useCallback(async () => {
@@ -181,18 +187,19 @@ export default function AccountTab({ session }: { session: Session }) {
         throw error;
       }
 
-      setTwoFactor({
-        isEnabled: true,
-        backupCodes: data?.backupCodes,
-      });
+      if (!data) {
+        throw new Error("No data returned from enable");
+      }
+
+      setTotpUri(data.totpURI);
+      setBackupCodes(data.backupCodes);
+      setShowSetup(true);
       setPasswordFor2FA("");
 
-      toast.success("2FA Enabled", {
-        description: "Two-factor authentication has been successfully enabled!",
+      toast.success("Scan the QR Code", {
+        description: "Open your authenticator app and scan the code below to complete setup.",
         richColors: true,
       });
-
-      await checkTwoFactorStatus();
     } catch (error) {
       console.error("Failed to enable 2FA:", error);
       let errorMessage = "Failed to enable 2FA. Please try again.";
@@ -216,6 +223,65 @@ export default function AccountTab({ session }: { session: Session }) {
     }
   };
 
+  const handleVerifyTotp = async () => {
+    if (!verifyCode || verifyCode.length !== 6) {
+      toast.error("Please enter a valid 6-digit code", {
+        richColors: true,
+      });
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const { error } = await authClient.twoFactor.verifyTotp({
+        code: verifyCode,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setShowSetup(false);
+      setVerifyCode("");
+      setTotpUri(null);
+      setBackupCodes(null);
+      setTwoFactor((prev) => ({ ...prev, isEnabled: true }));
+
+      toast.success("2FA Enabled", {
+        description: "Two-factor authentication has been successfully enabled!",
+        richColors: true,
+      });
+
+      await checkTwoFactorStatus();
+    } catch (error) {
+      console.error("Failed to verify TOTP:", error);
+      let errorMessage = "Invalid code. Please try again.";
+
+      if ((error as Error).message?.includes("INVALID_TOTP")) {
+        errorMessage = "Invalid TOTP code. Please check your authenticator app.";
+      } else if ((error as Error).message) {
+        errorMessage = (error as Error).message;
+      }
+
+      toast.error("Verification Failed", {
+        description: errorMessage,
+        richColors: true,
+      });
+
+      setVerifyCode("");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleCancelSetup = async () => {
+    setShowSetup(false);
+    setTotpUri(null);
+    setBackupCodes(null);
+    setVerifyCode("");
+    // Optionally disable if needed, but since not verified, probably not necessary
+  };
+
   const handleDisable2FA = async () => {
     if (!passwordFor2FA.trim()) {
       toast.error("Password required", {
@@ -237,6 +303,9 @@ export default function AccountTab({ session }: { session: Session }) {
 
       setTwoFactor({ isEnabled: false });
       setPasswordFor2FA("");
+      setShowSetup(false);
+      setTotpUri(null);
+      setBackupCodes(null);
 
       toast.success("2FA Disabled", {
         description: "Two-factor authentication has been disabled",
@@ -314,6 +383,31 @@ export default function AccountTab({ session }: { session: Session }) {
   };
 
   const passwordStrength = getPasswordStrength(passwordData.newPassword);
+
+  const isSettingUp = showSetup;
+  const statusText = isCheckingTwoFactor
+    ? "Checking 2FA Status..."
+    : isSettingUp
+    ? "Setting up 2FA"
+    : twoFactor.isEnabled
+    ? "2FA Enabled"
+    : "2FA Disabled";
+  const statusDescription = isCheckingTwoFactor
+    ? "Verifying your 2FA setup..."
+    : isSettingUp
+    ? "Scan the QR code and verify to complete setup"
+    : twoFactor.isEnabled
+    ? "Your account is protected with 2FA"
+    : "Enable 2FA for enhanced security";
+  const statusIcon = isCheckingTwoFactor ? (
+    <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
+  ) : isSettingUp ? (
+    <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
+  ) : twoFactor.isEnabled ? (
+    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+  ) : (
+    <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
@@ -460,33 +554,85 @@ export default function AccountTab({ session }: { session: Session }) {
           {/* 2FA Status */}
           <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
             <div className="flex items-center gap-3">
-              {isCheckingTwoFactor ? (
-                <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
-              ) : session.user.twoFactorEnabled ? (
-                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-              )}
+              {statusIcon}
               <div>
-                <p className="font-medium">
-                  {isCheckingTwoFactor
-                    ? "Checking 2FA Status..."
-                    : session.user.twoFactorEnabled
-                    ? "2FA Enabled"
-                    : "2FA Disabled"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {isCheckingTwoFactor
-                    ? "Verifying your 2FA setup..."
-                    : twoFactor.isEnabled
-                    ? "Your account is protected with 2FA"
-                    : "Enable 2FA for enhanced security"}
-                </p>
+                <p className="font-medium">{statusText}</p>
+                <p className="text-sm text-muted-foreground">{statusDescription}</p>
               </div>
             </div>
           </div>
 
-          {!isCheckingTwoFactor && !twoFactor.isEnabled && (
+          {showSetup ? (
+            <div className="space-y-6">
+              {/* QR Code */}
+              <div className="flex justify-center p-4 bg-white rounded-lg border">
+                {totpUri && <QRCode value={totpUri} size={256} />}
+              </div>
+              <div className="text-center text-sm text-muted-foreground">
+                Scan this QR code with your authenticator app (e.g., Google Authenticator, Authy)
+              </div>
+
+              {/* Verify Code */}
+              <div className="space-y-2">
+                <Label htmlFor="verifyCode">Enter Verification Code</Label>
+                <Input
+                  id="verifyCode"
+                  type="text"
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
+                  maxLength={6}
+                  placeholder="123456"
+                  disabled={isVerifying}
+                />
+              </div>
+
+              {/* Backup Codes */}
+              {backupCodes && backupCodes.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Backup Codes</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {backupCodes.map((code, index) => (
+                      <div
+                        key={index}
+                        className="p-2 bg-muted rounded text-center font-mono text-sm"
+                      >
+                        {code}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Save these codes in a safe place. They are one-time use for recovery.
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1"
+                  onClick={handleVerifyTotp}
+                  disabled={isVerifying || verifyCode.length !== 6}
+                >
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    "Verify & Enable"
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleCancelSetup}
+                  disabled={isVerifying}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : !isCheckingTwoFactor && !twoFactor.isEnabled ? (
             <>
               <div className="space-y-2">
                 <Label htmlFor="passwordFor2FA">Password</Label>
@@ -523,7 +669,7 @@ export default function AccountTab({ session }: { session: Session }) {
                 {isEnabling2FA ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enabling...
+                    Preparing...
                   </>
                 ) : (
                   <>
@@ -533,9 +679,7 @@ export default function AccountTab({ session }: { session: Session }) {
                 )}
               </Button>
             </>
-          )}
-
-          {!isCheckingTwoFactor && twoFactor.isEnabled && (
+          ) : !isCheckingTwoFactor && twoFactor.isEnabled ? (
             <>
               <div className="space-y-2">
                 <Label htmlFor="passwordForDisable2FA">Password</Label>
@@ -573,7 +717,7 @@ export default function AccountTab({ session }: { session: Session }) {
                 )}
               </Button>
             </>
-          )}
+          ) : null}
         </CardContent>
       </Card>
     </div>

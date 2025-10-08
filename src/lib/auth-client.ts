@@ -1,13 +1,7 @@
 import { createAuthClient } from "better-auth/react";
 import { twoFactorClient } from "better-auth/plugins";
 import { adminClient } from "better-auth/client/plugins";
-import {
-  admin,
-  cashier,
-  delivery,
-  user,
-  ac,
-} from "@/better-auth/permissions";
+import { admin, cashier, delivery, user, ac } from "@/better-auth/permissions";
 
 const baseUrl =
   process.env.NODE_ENV === "development"

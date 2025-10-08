@@ -205,8 +205,8 @@ export function TwoFactorVerificationForm({
             {isResending
               ? "Sending..."
               : countdown > 0
-                ? `Resend code in ${countdown}s`
-                : "Resend verification code"}
+              ? `Resend code in ${countdown}s`
+              : "Resend verification code"}
           </Button>
         </div>
 

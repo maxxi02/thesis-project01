@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Chart configurations
 const categoryChartConfig = {
@@ -139,10 +140,10 @@ export const ProductsTab = () => {
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardHeader className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-muted rounded w-3/4 dark:bg-muted/80"></div>
               </CardHeader>
               <CardContent>
-                <div className="h-8 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                <div className="h-8 bg-muted rounded w-1/2 animate-pulse dark:bg-muted/80"></div>
               </CardContent>
             </Card>
           ))}
@@ -156,7 +157,7 @@ export const ProductsTab = () => {
       <div className="flex items-center justify-center h-64">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
+            <p className="text-center text-foreground">
               {error || "No data available"}
             </p>
             <button
@@ -189,32 +190,32 @@ export const ProductsTab = () => {
     <div className="space-y-6">
       {/* Period Selector */}
       <div className="flex items-center gap-4">
-        <label htmlFor="period-select" className="text-sm font-medium">
+        <label htmlFor="period-select" className="text-sm font-medium text-foreground">
           Analytics Period:
         </label>
-        <select
-          id="period-select"
-          value={period}
-          onChange={(e) => setPeriod(e.target.value)}
-          className="px-3 py-2 border rounded-md text-sm"
-        >
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </select>
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7">Last 7 days</SelectItem>
+            <SelectItem value="30">Last 30 days</SelectItem>
+            <SelectItem value="90">Last 90 days</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+            <CardTitle className="text-sm font-medium text-foreground">
               Total Products
             </CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-foreground">
               {analytics.overview.totalProducts.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -225,7 +226,7 @@ export const ProductsTab = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Alerts</CardTitle>
+            <CardTitle className="text-sm font-medium text-foreground">Stock Alerts</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -242,13 +243,13 @@ export const ProductsTab = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+            <CardTitle className="text-sm font-medium text-foreground">
               Inventory Value
             </CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-foreground">
               ₱
               {analytics.overview.totalInventoryValue.toLocaleString(
                 undefined,
@@ -264,13 +265,13 @@ export const ProductsTab = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+            <CardTitle className="text-sm font-medium text-foreground">
               Sales ({period} days)
             </CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-foreground">
               ₱
               {analytics.sales.totalSales.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
@@ -289,7 +290,7 @@ export const ProductsTab = () => {
         {/* Top Selling Products */}
         <Card>
           <CardHeader>
-            <CardTitle>Top Selling Products</CardTitle>
+            <CardTitle className="text-foreground">Top Selling Products</CardTitle>
             <CardDescription>
               Best performers in last {period} days
             </CardDescription>
@@ -330,7 +331,7 @@ export const ProductsTab = () => {
           </CardContent>
           {analytics.sales.totalQuantitySold > 0 && (
             <CardFooter className="flex-col gap-2 text-sm">
-              <div className="flex items-center gap-2 font-medium leading-none">
+              <div className="flex items-center gap-2 font-medium leading-none text-foreground">
                 {analytics.sales.totalQuantitySold} total items sold{" "}
                 <TrendingUp className="h-4 w-4" />
               </div>
@@ -345,7 +346,7 @@ export const ProductsTab = () => {
         {/* Sales by Category */}
         <Card>
           <CardHeader>
-            <CardTitle>Sales by Category</CardTitle>
+            <CardTitle className="text-foreground">Sales by Category</CardTitle>
             <CardDescription>
               Revenue distribution by product category
             </CardDescription>
@@ -392,7 +393,7 @@ export const ProductsTab = () => {
         {/* Recent Activity */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle className="text-foreground">Recent Activity</CardTitle>
             <CardDescription>Latest sales transactions</CardDescription>
           </CardHeader>
           <CardContent>
@@ -411,7 +412,7 @@ export const ProductsTab = () => {
                     <TableRow key={activity._id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">
+                          <div className="font-medium text-foreground">
                             {activity.productName}
                           </div>
                           <div className="text-sm text-muted-foreground">
@@ -419,9 +420,9 @@ export const ProductsTab = () => {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{activity.quantitySold}</TableCell>
-                      <TableCell>₱{activity.totalAmount.toFixed(2)}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-foreground">{activity.quantitySold}</TableCell>
+                      <TableCell className="text-foreground">₱{activity.totalAmount.toFixed(2)}</TableCell>
+                      <TableCell className="text-foreground">
                         {new Date(activity.saleDate).toLocaleDateString()}
                       </TableCell>
                     </TableRow>
@@ -444,7 +445,7 @@ export const ProductsTab = () => {
         {/* Stock Alerts */}
         <Card>
           <CardHeader>
-            <CardTitle>Stock Alerts</CardTitle>
+            <CardTitle className="text-foreground">Stock Alerts</CardTitle>
             <CardDescription>Products needing attention</CardDescription>
           </CardHeader>
           <CardContent>
@@ -461,11 +462,11 @@ export const ProductsTab = () => {
                 {analytics.stockAlerts.length > 0 ? (
                   analytics.stockAlerts.map((product) => (
                     <TableRow key={product._id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium text-foreground">
                         {product.name}
                       </TableCell>
-                      <TableCell>{product.sku}</TableCell>
-                      <TableCell>{product.stock}</TableCell>
+                      <TableCell className="text-foreground">{product.sku}</TableCell>
+                      <TableCell className="text-foreground">{product.stock}</TableCell>
                       <TableCell>
                         <Badge
                           variant={
