@@ -129,7 +129,15 @@ export const ObjectDetectionModal = ({
                   <Button onClick={handleUseProduct} className="flex-1">
                     Search This Product
                   </Button>
-                  <Button variant="outline" onClick={clearDetection}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      clearDetection();
+                      stopDetection();
+                      // Force a small delay before restarting
+                      setTimeout(() => startDetection(), 100);
+                    }}
+                  >
                     Detect Another
                   </Button>
                 </div>

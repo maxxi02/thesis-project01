@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { FormData } from "@/types/product-types";
-import { DetectedObject } from "@/lib/tensorflow/object-detector"; 
+import { DetectedObject } from "@/lib/tensorflow/object-detector";
 
 interface ProductMatch {
   _id?: string;
@@ -131,7 +131,12 @@ export const useObjectDetection = () => {
 
   const clearDetection = () => {
     setDetectedProduct(null);
-    setDetectionResponse(null);
+    setIsLoading(false);
+    // Add this to force the detector to reset
+    if (isDetecting) {
+      setIsDetecting(false);
+      setTimeout(() => setIsDetecting(true), 100);
+    }
   };
 
   return {
