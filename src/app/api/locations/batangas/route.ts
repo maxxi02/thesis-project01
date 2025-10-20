@@ -1,5 +1,3 @@
-// app/api/locations/batangas/route.ts - OPTIMIZED VERSION
-
 import { NextResponse } from "next/server";
 
 const PSGC_BASE_URL = process.env.PSGC_BASE_URL;
