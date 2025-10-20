@@ -1,3 +1,5 @@
+// app/api/locations/batangas/route.ts - OPTIMIZED VERSION
+
 import { NextResponse } from "next/server";
 
 const PSGC_BASE_URL = process.env.PSGC_BASE_URL;
@@ -22,6 +24,11 @@ interface FormattedLocation {
   };
 }
 
+// Cache to prevent repeated calls
+let cachedLocations: FormattedLocation[] | null = null;
+let cacheTimestamp: number | null = null;
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
 async function getCoordinates(
   address: string
 ): Promise<{ lat: number; lng: number } | null> {
@@ -32,8 +39,9 @@ async function getCoordinates(
       )}&format=json&limit=1`,
       {
         headers: {
-          "User-Agent": "YourAppName/1.0", // Required by Nominatim
+          "User-Agent": "YourAppName/1.0",
         },
+        next: { revalidate: 86400 }, // Cache for 24 hours
       }
     );
 
@@ -52,7 +60,6 @@ async function getCoordinates(
   }
 }
 
-// Add delay to respect rate limits (1 request per second for Nominatim)
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function GET(request: Request) {
@@ -61,63 +68,96 @@ export async function GET(request: Request) {
     const allCities = searchParams.get("allCities") === "true";
     const includeCoordinates = searchParams.get("coordinates") === "true";
 
+    // FIX 1: Check cache first
+    if (
+      !includeCoordinates &&
+      cachedLocations &&
+      cacheTimestamp &&
+      Date.now() - cacheTimestamp < CACHE_DURATION
+    ) {
+      console.log("Returning cached locations");
+      return NextResponse.json({
+        success: true,
+        count: cachedLocations.length,
+        locations: cachedLocations,
+        cached: true,
+      });
+    }
+
     if (allCities) {
-      // Get all cities and their barangays in Batangas Province
+      // FIX 2: Skip geocoding during build - too slow!
+      if (includeCoordinates && process.env.VERCEL_ENV === "production") {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Coordinates not available during build. Fetch without coordinates first.",
+          },
+          { status: 400 }
+        );
+      }
+
       const citiesResponse = await fetch(
-        `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`
+        `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`,
+        { next: { revalidate: 86400 } } // Cache for 24 hours
       );
       const cities: Location[] = await citiesResponse.json();
 
-      const allLocations = await Promise.all(
-        cities.map(async (city: Location) => {
-          try {
-            const barangaysResponse = await fetch(
-              `${PSGC_BASE_URL}/cities-municipalities/${city.code}/barangays.json`
-            );
-            const barangays: Location[] = await barangaysResponse.json();
+      // FIX 3: Process in smaller batches to avoid timeout
+      const batchSize = 5; // Process 5 cities at a time
+      const allLocations: FormattedLocation[] = [];
 
-            const locationsWithCoords = await Promise.all(
-              barangays.map(async (barangay: Location) => {
-                const fullAddress = `${barangay.name}, ${city.name}, Batangas, Philippines`;
-                let coordinates = null;
+      for (let i = 0; i < cities.length; i += batchSize) {
+        const cityBatch = cities.slice(i, i + batchSize);
 
-                if (includeCoordinates) {
-                  coordinates = await getCoordinates(fullAddress);
-                  await delay(1100); // Respect Nominatim rate limit
-                }
+        const batchResults = await Promise.all(
+          cityBatch.map(async (city: Location) => {
+            try {
+              const barangaysResponse = await fetch(
+                `${PSGC_BASE_URL}/cities-municipalities/${city.code}/barangays.json`,
+                { next: { revalidate: 86400 } }
+              );
+              const barangays: Location[] = await barangaysResponse.json();
 
-                return {
-                  id: barangay.code,
-                  barangay: barangay.name,
-                  city: city.name,
-                  province: "Batangas",
-                  fullAddress: `${barangay.name}, ${city.name}, Batangas`,
-                  cityCode: city.code,
-                  barangayCode: barangay.code,
-                  ...(coordinates && { coordinates }),
-                };
-              })
-            );
+              // FIX 4: Return locations WITHOUT coordinates by default
+              const locations = barangays.map((barangay: Location) => ({
+                id: barangay.code,
+                barangay: barangay.name,
+                city: city.name,
+                province: "Batangas",
+                fullAddress: `${barangay.name}, ${city.name}, Batangas`,
+                cityCode: city.code,
+                barangayCode: barangay.code,
+              }));
 
-            return locationsWithCoords;
-          } catch (error) {
-            console.error(`Error fetching barangays for ${city.name}:`, error);
-            return [];
-          }
-        })
-      );
+              return locations;
+            } catch (error) {
+              console.error(
+                `Error fetching barangays for ${city.name}:`,
+                error
+              );
+              return [];
+            }
+          })
+        );
 
-      const flattenedLocations: FormattedLocation[] = allLocations.flat();
+        allLocations.push(...batchResults.flat());
+      }
+
+      // Cache the results
+      cachedLocations = allLocations;
+      cacheTimestamp = Date.now();
 
       return NextResponse.json({
         success: true,
-        count: flattenedLocations.length,
-        locations: flattenedLocations,
+        count: allLocations.length,
+        locations: allLocations,
       });
     } else {
-      // Get only Batangas City barangays
+      // Batangas City only - this is faster
       const citiesResponse = await fetch(
-        `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`
+        `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`,
+        { next: { revalidate: 86400 } }
       );
       const cities: Location[] = await citiesResponse.json();
 
@@ -133,21 +173,15 @@ export async function GET(request: Request) {
       }
 
       const barangaysResponse = await fetch(
-        `${PSGC_BASE_URL}/cities-municipalities/${batangasCityCode}/barangays.json`
+        `${PSGC_BASE_URL}/cities-municipalities/${batangasCityCode}/barangays.json`,
+        { next: { revalidate: 86400 } }
       );
       const barangays: Location[] = await barangaysResponse.json();
 
+      // FIX 5: Only add coordinates if explicitly requested AND not during build
       const formattedLocations: FormattedLocation[] = await Promise.all(
         barangays.map(async (barangay: Location) => {
-          const fullAddress = `${barangay.name}, Batangas City, Batangas, Philippines`;
-          let coordinates = null;
-
-          if (includeCoordinates) {
-            coordinates = await getCoordinates(fullAddress);
-            await delay(1100); // Respect Nominatim rate limit
-          }
-
-          return {
+          const location: FormattedLocation = {
             id: barangay.code,
             barangay: barangay.name,
             city: "Batangas City",
@@ -155,8 +189,20 @@ export async function GET(request: Request) {
             fullAddress: `${barangay.name}, Batangas City, Batangas`,
             cityCode: batangasCityCode,
             barangayCode: barangay.code,
-            ...(coordinates && { coordinates }),
           };
+
+          // Only geocode if coordinates requested and not building
+          if (includeCoordinates && process.env.VERCEL_ENV !== "production") {
+            const fullAddress = `${barangay.name}, Batangas City, Batangas, Philippines`;
+            const coordinates = await getCoordinates(fullAddress);
+            await delay(1100);
+
+            if (coordinates) {
+              location.coordinates = coordinates;
+            }
+          }
+
+          return location;
         })
       );
 
@@ -174,3 +220,7 @@ export async function GET(request: Request) {
     );
   }
 }
+
+// FIX 6: Add route config to prevent this from running during build
+export const dynamic = "force-dynamic"; // Don't pre-render this route
+export const fetchCache = "force-no-store"; // Don't cache during build
