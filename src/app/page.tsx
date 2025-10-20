@@ -205,7 +205,7 @@ export default async function Home() {
                 href="tel:+1234567890"
                 className="text-primary hover:text-primary/80 transition"
               >
-                +1 (234) 567-890
+                Please add your number here
               </a>
             </div>
             <div className="flex flex-col gap-2">
