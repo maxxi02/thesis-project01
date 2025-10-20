@@ -51,7 +51,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Product } from "@/types/product-types";
 import type { Session } from "@/better-auth/auth-types";
-import { batangasCityBarangays } from "./batangas-location";
 import Image from "next/image";
 import { NotificationHelper } from "@/notification/notification-helper";
 import { getServerSession } from "@/better-auth/action";
@@ -83,6 +82,20 @@ interface ProductFormData {
   image?: string;
 }
 
+export interface BatangasCityAddress {
+  id: string;
+  barangay: string;
+  city: string;
+  province: string;
+  fullAddress: string;
+  cityCode?: string;
+  barangayCode?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+}
+
 export default function ProductManagement() {
   const sseConnectionRef = useRef<EventSource | null>(null);
   const [userSession, setUserSession] = useState<Session | null>(null);
@@ -105,7 +118,7 @@ export default function ProductManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [addressInput, setAddressInput] = useState("");
   const [filteredAddresses, setFilteredAddresses] = useState<
-    typeof batangasCityBarangays
+    BatangasCityAddress[]
   >([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState("cards");
@@ -143,6 +156,41 @@ export default function ProductManagement() {
     description: "",
     image: "",
   });
+  selectedProduct;
+
+  // api states for location
+  const [apiLocations, setApiLocations] = useState<BatangasCityAddress[]>([]);
+
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        setLoading(true);
+        // Changed to allCities=true
+        const response = await fetch("/api/locations/batangas?allCities=true");
+        const data = await response.json();
+
+        if (data.success && data.locations?.length > 0) {
+          setApiLocations(data.locations);
+          toast.success(
+            `Loaded ${data.count} locations from all Batangas cities`
+          );
+        } else {
+          setApiLocations([]);
+          toast.error("No locations available from API");
+        }
+      } catch (error) {
+        console.error("Failed to fetch locations:", error);
+        setApiLocations([]);
+        toast.error("Failed to load locations from API");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (mounted) {
+      loadLocations();
+    }
+  }, [mounted]);
 
   // Filter products based on search term
   const filteredProducts = products.filter(
@@ -282,9 +330,10 @@ export default function ProductManagement() {
   const handleAddressChange = (value: string) => {
     setAddressInput(value);
     setShipmentData({ ...shipmentData, destination: value });
-    if (value.length > 1) {
-      const filtered = batangasCityBarangays.filter(
-        (addr) =>
+
+    if (value.length > 1 && apiLocations.length > 0) {
+      const filtered = apiLocations.filter(
+        (addr: BatangasCityAddress) =>
           addr.city.toLowerCase().includes(value.toLowerCase()) ||
           addr.fullAddress.toLowerCase().includes(value.toLowerCase()) ||
           addr.barangay.toLowerCase().includes(value.toLowerCase())
@@ -513,8 +562,9 @@ export default function ProductManagement() {
               },
               customerAddress: {
                 destination: shipmentData.destination,
-                coordinates: batangasCityBarangays.find(
-                  (addr) => addr.fullAddress === shipmentData.destination
+                coordinates: apiLocations.find(
+                  (addr: BatangasCityAddress) =>
+                    addr.fullAddress === shipmentData.destination
                 )?.coordinates,
               },
               deliveryPersonnel: {
@@ -1405,11 +1455,11 @@ export default function ProductManagement() {
                   onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
                 />
                 {showDropdown && filteredAddresses.length > 0 && (
-                  <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <ul className="absolute z-10 w-full mt-1 dark:bg-black dark:text-white bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
                     {filteredAddresses.map((address) => (
                       <li
                         key={address.id}
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-black cursor-pointer"
                         onMouseDown={() => {
                           setAddressInput(address.fullAddress);
                           setShipmentData({

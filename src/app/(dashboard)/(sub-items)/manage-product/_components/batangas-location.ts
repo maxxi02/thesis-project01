@@ -10,6 +10,25 @@ export interface BatangasCityAddress {
   };
 }
 
+export const fetchBatangasLocationsFromAPI = async (
+  allCities: boolean = false
+): Promise<BatangasCityAddress[]> => {
+  try {
+    const response = await fetch(
+      `/api/locations/batangas${allCities ? "?allCities=true" : ""}`
+    );
+    const data = await response.json();
+
+    if (data.success) {
+      return data.locations;
+    }
+    return [];
+  } catch (error) {
+    console.error("Failed to fetch locations from API:", error);
+    return [];
+  }
+};
+
 export const batangasCityBarangays: BatangasCityAddress[] = [
   // Urban Barangays (Poblacion)
   {
