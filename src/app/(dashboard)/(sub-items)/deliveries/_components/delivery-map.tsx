@@ -11,6 +11,7 @@ import { Icon, type LatLngLiteral } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type React from "react";
 import { useState, useEffect, useRef } from "react";
+import type { Map as LeafletMap } from "leaflet";
 
 type MapLocation = LatLngLiteral & {
   id: string;
@@ -60,6 +61,7 @@ const DeliveryMap: React.FC<MapProps> = ({
   locations,
   selectedLocationId,
 }) => {
+  const mapRef = useRef<LeafletMap | null>(null);
   const [mapType, setMapType] = useState<MapType>("roadmap");
   const [selectedLocation, setSelectedLocation] = useState<
     MapLocation | undefined
@@ -71,6 +73,13 @@ const DeliveryMap: React.FC<MapProps> = ({
   const [streetViewUrl, setStreetViewUrl] = useState<string>("");
   const [showStreetView, setShowStreetView] = useState<boolean>(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (selectedLocationId) {
@@ -401,6 +410,7 @@ const DeliveryMap: React.FC<MapProps> = ({
         }}
       >
         <MapContainer
+          ref={mapRef}
           center={selectedLocation || center}
           zoom={13}
           minZoom={5}

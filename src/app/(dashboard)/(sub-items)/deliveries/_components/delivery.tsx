@@ -33,12 +33,23 @@ import {
   Map,
 } from "lucide-react";
 import { toast } from "sonner";
-import DeliveryMap from "./delivery-map";
 import Image from "next/image";
 import { Session } from "@/better-auth/auth-types";
 import { NotificationHelper } from "../../../../../notification/notification-helper";
 import { getServerSession } from "@/better-auth/action";
+import dynamic from "next/dynamic";
 
+const DeliveryMap = dynamic(() => import("./delivery-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-center">
+        <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">Loading map...</p>
+      </div>
+    </div>
+  ),
+});
 interface DeliveryAssignment {
   id: string;
   product: {

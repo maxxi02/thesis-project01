@@ -73,13 +73,13 @@ export default async function Home() {
 
         {/* Warehouse Image */}
         <div className="flex-1 flex justify-center">
-          {/* <Image
+          <Image
             src="/warehouse-management-system-with-boxes-and-shelves.jpg"
             alt="Warehouse management system"
             className="w-full max-w-md rounded-lg shadow-lg"
             width={500}
             height={500}
-          /> */}
+          />
         </div>
       </section>
 
