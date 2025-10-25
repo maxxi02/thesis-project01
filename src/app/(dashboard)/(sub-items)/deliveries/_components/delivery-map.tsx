@@ -50,9 +50,26 @@ const SelectedLocation = ({
   zoom?: number;
 }) => {
   const map = useMap();
+
   useEffect(() => {
-    map.setView(center, zoom, { animate: true });
+    // Add validation and wait for map to be ready
+    if (!map || !center?.lat || !center?.lng) return;
+
+    // Wait for map to be fully initialized
+    const timeoutId = setTimeout(() => {
+      try {
+        if (map.getCenter()) {
+          // Check if map has a center (is initialized)
+          map.setView(center, zoom, { animate: true });
+        }
+      } catch (error) {
+        console.warn("Map not ready for setView:", error);
+      }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [center, zoom, map]);
+
   return null;
 };
 
@@ -89,6 +106,17 @@ const DeliveryMap: React.FC<MapProps> = ({
       }
     }
   }, [selectedLocationId, locations]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        mapRef.current?.invalidateSize();
+      } catch (error) {
+        console.warn("Map invalidateSize failed:", error);
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const getMarkerIcon = (location: MapLocation, isSelected: boolean) => {
     const getColor = () => {
@@ -411,7 +439,13 @@ const DeliveryMap: React.FC<MapProps> = ({
       >
         <MapContainer
           ref={mapRef}
-          center={selectedLocation || center}
+          center={
+            selectedLocation?.lat && selectedLocation?.lng
+              ? { lat: selectedLocation.lat, lng: selectedLocation.lng }
+              : center?.lat && center?.lng
+              ? { lat: center.lat, lng: center.lng }
+              : { lat: 13.7565, lng: 121.0584 } // Default Batangas City coordinates
+          }
           zoom={13}
           minZoom={5}
           zoomControl={false}
@@ -419,15 +453,17 @@ const DeliveryMap: React.FC<MapProps> = ({
           style={{ width: "100%", height: "100%" }}
         >
           <TileLayer url={getUrl()} />
-          {(selectedLocation || selectedLocationId) && (
-            <SelectedLocation
-              center={
-                selectedLocation ||
-                locations.find((l) => l.id === selectedLocationId)!
-              }
-              zoom={15}
-            />
-          )}
+          {(selectedLocation || selectedLocationId) &&
+            selectedLocation?.lat &&
+            selectedLocation?.lng && (
+              <SelectedLocation
+                center={{
+                  lat: selectedLocation.lat,
+                  lng: selectedLocation.lng,
+                }}
+                zoom={15}
+              />
+            )}
           {renderMarks()}
           <ZoomControl position="bottomright" />
         </MapContainer>

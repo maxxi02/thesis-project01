@@ -510,6 +510,11 @@ export default function ProductManagement() {
         return;
       }
 
+      const selectedAddress = apiLocations.find(
+        (addr: BatangasCityAddress) =>
+          addr.fullAddress === shipmentData.destination
+      );
+
       const response = await fetch(
         `/api/products/${selectedProduct._id}/to-ship`,
         {
@@ -524,6 +529,7 @@ export default function ProductManagement() {
               fcmToken: driver.fcmToken,
             },
             destination: shipmentData.destination,
+            coordinates: selectedAddress?.coordinates || null, // Add coordinates here
             note: shipmentData.note,
             estimatedDelivery: shipmentData.estimatedDelivery,
             markedBy: {
@@ -562,10 +568,7 @@ export default function ProductManagement() {
               },
               customerAddress: {
                 destination: shipmentData.destination,
-                coordinates: apiLocations.find(
-                  (addr: BatangasCityAddress) =>
-                    addr.fullAddress === shipmentData.destination
-                )?.coordinates,
+                coordinates: selectedAddress?.coordinates || null, // Pass coordinates here too
               },
               deliveryPersonnel: {
                 id: driver.id,

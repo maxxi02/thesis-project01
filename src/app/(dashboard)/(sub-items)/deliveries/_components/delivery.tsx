@@ -420,19 +420,29 @@ export default function Delivery() {
             }
             break;
           case "NEW_ASSIGNMENT":
-            NotificationHelper.triggerNotification({
-              sound: true,
-              vibration: true,
-              respectAudioSettings: true,
-              type: "assignment",
-            });
+            // Remove or fix the notification trigger that's causing the error
+            try {
+              NotificationHelper.triggerNotification({
+                sound: true,
+                vibration: true,
+                respectAudioSettings: true,
+                type: "assignment",
+              });
+            } catch (notifError) {
+              console.warn("Notification failed:", notifError);
+            }
+
             toast.info("New Delivery Assignment", {
               description: `You have been assigned to deliver ${data.data.productName}`,
             });
+
             if (userSession?.user.email) {
               fetchAssignments(userSession.user.email);
             }
-            if (data.data.coordinates) {
+
+            // Only set map location if coordinates are valid
+            if (data.data.coordinates?.lat && data.data.coordinates?.lng) {
+              // Don't automatically open the map, let user decide
               setSelectedMapLocation({
                 id: data.data.assignmentId,
                 lat: data.data.coordinates.lat,
@@ -440,8 +450,6 @@ export default function Delivery() {
                 name: data.data.productName,
                 address: data.data.destination,
               });
-              setActiveTab("map");
-              setShowMapDialog(true);
             }
             break;
         }
@@ -648,7 +656,10 @@ export default function Delivery() {
 
   const focusOnAssignment = (assignmentId: string) => {
     const assignment = assignments.find((a) => a.id === assignmentId);
-    if (assignment?.customerAddress.coordinates) {
+    if (
+      assignment?.customerAddress.coordinates?.lat &&
+      assignment?.customerAddress.coordinates?.lng
+    ) {
       setSelectedMapLocation({
         id: assignmentId,
         lat: assignment.customerAddress.coordinates.lat,
@@ -658,6 +669,8 @@ export default function Delivery() {
       });
       setActiveTab("map");
       setShowMapDialog(true);
+    } else {
+      toast.error("Location coordinates not available for this delivery");
     }
   };
 
