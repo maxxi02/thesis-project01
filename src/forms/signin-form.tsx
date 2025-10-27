@@ -35,6 +35,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const formSchema = z.object({
   code: z
@@ -61,11 +62,15 @@ export function SigninForm({
   const [isResending, setIsResending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   const form = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
       email: "",
       password: "",
+      agreeToTerms: false,
     },
   });
 
@@ -223,7 +228,7 @@ export function SigninForm({
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="john@example.com"
+                    placeholder="nivekamures@example.com"
                     {...field}
                   />
                 </FormControl>
@@ -254,12 +259,57 @@ export function SigninForm({
             )}
           />
 
+          <FormField
+            control={form.control}
+            name="agreeToTerms"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="text-sm font-normal cursor-pointer inline">
+                    I agree to the{" "}
+                    <span
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowTermsModal(true);
+                      }}
+                      className="underline underline-offset-4 hover:text-primary cursor-pointer"
+                    >
+                      Terms of Service
+                    </span>{" "}
+                    and{" "}
+                    <span
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowPrivacyModal(true);
+                      }}
+                      className="underline underline-offset-4 hover:text-primary cursor-pointer"
+                    >
+                      Privacy Policy
+                    </span>
+                  </FormLabel>
+                  <FormMessage />
+                </div>
+              </FormItem>
+            )}
+          />
+
           <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? <Loader2 className="animate-spin" /> : "Login"}
+            {isSubmitting ? (
+              <Loader2 className="animate-spin mx-auto" />
+            ) : (
+              "Login"
+            )}
           </Button>
         </form>
       </Form>
 
+      {/* 2FA Dialog */}
       <Dialog open={show2FAModal} onOpenChange={setShow2FAModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -364,6 +414,36 @@ export function SigninForm({
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Privacy Policy Dialog */}
+      <Dialog open={showPrivacyModal} onOpenChange={setShowPrivacyModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Privacy Policy</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <p>Your privacy policy content goes here...</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowPrivacyModal(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Terms of Service Dialog */}
+      <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Terms of Service</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <p>Your terms of service content goes here...</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowTermsModal(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

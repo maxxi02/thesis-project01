@@ -342,7 +342,7 @@ export default function ProfileTab({ session }: { session: Session }) {
             </div>
           </div>
 
-          {/* User ID Section */}
+          {/* User ID Section
           {session.user?.id && (
             <div className="space-y-2">
               <Label>User ID</Label>
@@ -355,7 +355,7 @@ export default function ProfileTab({ session }: { session: Session }) {
                 Your unique user identifier (read-only).
               </p>
             </div>
-          )}
+          )} */}
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
@@ -391,15 +391,15 @@ export default function ProfileTab({ session }: { session: Session }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4">
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label>Session ID</Label>
               <div className="p-2 bg-muted rounded-md">
                 <code className="text-sm font-mono break-all">
                   {session.session.id}
                 </code>
               </div>
-            </div>
-
+            </div> */}
+{/* 
             <div className="space-y-2">
               <Label>IP Address</Label>
               <div className="p-2 bg-muted rounded-md">
@@ -407,7 +407,7 @@ export default function ProfileTab({ session }: { session: Session }) {
                   {session.session.ipAddress}
                 </code>
               </div>
-            </div>
+            </div> */}
 
             <div className="space-y-2">
               <Label>User Agent</Label>

@@ -9,6 +9,9 @@ export const signInSchema = z.object({
     .string()
     .min(8, { message: "Password must be at least 8 characters." })
     .max(100, { message: "Password must be less than 100 characters." }),
+  agreeToTerms: z.boolean().refine((val) => val === true, {
+    message: "You must agree to the Terms and Privacy Policy to continue.",
+  }),
 });
 
 export const signupSchema = z

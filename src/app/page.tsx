@@ -8,31 +8,6 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen w-full bg-background">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12 border-b border-border bg-background/95 backdrop-blur">
-        <div className="text-2xl font-bold text-foreground">LGW</div>
-        <div className="hidden md:flex gap-8 items-center">
-          <a
-            href="#features"
-            className="text-muted-foreground hover:text-foreground transition scroll-smooth"
-          >
-            Features
-          </a>
-          <a
-            href="#about"
-            className="text-muted-foreground hover:text-foreground transition scroll-smooth"
-          >
-            About
-          </a>
-          <a
-            href="#contact"
-            className="text-muted-foreground hover:text-foreground transition scroll-smooth"
-          >
-            Contact
-          </a>
-        </div>
-      </nav>
-
       {/* Hero Section */}
       <section className="pt-20 flex flex-col lg:flex-row items-center justify-between px-6 md:px-12 py-16 md:py-24 gap-12 min-h-screen">
         <div className="flex-1 flex flex-col gap-6">
@@ -70,16 +45,19 @@ export default async function Home() {
             </Button>
           </div>
         </div>
-
-        {/* Warehouse Image */}
-        <div className="flex-1 flex justify-center">
-          <Image
-            src="/warehouse-management-system-with-boxes-and-shelves.jpg"
-            alt="Warehouse management system"
-            className="w-full max-w-md rounded-lg shadow-lg"
-            width={500}
-            height={500}
-          />
+        {/* Warehouse Image with Wavy Container */}
+        <div className="flex-1 flex justify-center items-center w-full">
+          <div className="relative w-full max-w-2xl">
+            {/* Image with wavy clip */}
+            <div className="relative w-full aspect-square overflow-hidden">
+              <Image
+                src="/hero-section-img.jpg"
+                alt="Warehouse management system"
+                fill
+                className="object-cover"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
