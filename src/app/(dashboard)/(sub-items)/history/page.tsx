@@ -140,8 +140,6 @@ const ProductHistoryView = () => {
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProductId, setSelectedProductId] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
 
   // User state
   const [user, setUser] = useState<{ role?: string } | null>(null);
@@ -153,6 +151,9 @@ const ProductHistoryView = () => {
       currency: "PHP",
     }).format(amount);
   };
+
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -183,9 +184,10 @@ const ProductHistoryView = () => {
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
       if (selectedProductId) params.append("productId", selectedProductId);
-      if (selectedCategory) params.append("category", selectedCategory);
-      if (selectedStatus) params.append("status", selectedStatus);
-
+      if (selectedCategory && selectedCategory !== "all")
+        params.append("category", selectedCategory);
+      if (selectedStatus && selectedStatus !== "all")
+        params.append("status", selectedStatus);
       const response = await fetch(`/api/product-history?${params.toString()}`);
       const data = await response.json();
 
@@ -306,8 +308,8 @@ const ProductHistoryView = () => {
     setStartDate("");
     setEndDate("");
     setSelectedProductId("");
-    setSelectedCategory("");
-    setSelectedStatus("");
+    setSelectedCategory("all");
+    setSelectedStatus("all");
     setCurrentPage(1);
   };
 
@@ -492,30 +494,42 @@ const ProductHistoryView = () => {
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filter Sales History
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filter Sales History
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                Clear All Filters
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
-                <label htmlFor={searchInputId} className="text-sm font-medium">
+                <label
+                  htmlFor={searchInputId}
+                  className="text-sm font-medium block"
+                >
                   Search
                 </label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     id={searchInputId}
-                    placeholder="Search products, SKU, notes..."
+                    placeholder="Product, SKU..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
-                <label htmlFor={startDateId} className="text-sm font-medium">
+                <label
+                  htmlFor={startDateId}
+                  className="text-sm font-medium block"
+                >
                   Start Date
                 </label>
                 <Input
@@ -525,8 +539,12 @@ const ProductHistoryView = () => {
                   onChange={(e) => setStartDate(e.target.value)}
                 />
               </div>
+
               <div className="space-y-2">
-                <label htmlFor={endDateId} className="text-sm font-medium">
+                <label
+                  htmlFor={endDateId}
+                  className="text-sm font-medium block"
+                >
                   End Date
                 </label>
                 <Input
@@ -536,10 +554,11 @@ const ProductHistoryView = () => {
                   onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
+
               <div className="space-y-2">
                 <label
                   htmlFor={categorySelectId}
-                  className="text-sm font-medium"
+                  className="text-sm font-medium block"
                 >
                   Category
                 </label>
@@ -551,9 +570,7 @@ const ProductHistoryView = () => {
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All categories">
-                      All categories
-                    </SelectItem>
+                    <SelectItem value="all">All categories</SelectItem>
                     {categories.map((category) => (
                       <SelectItem key={category} value={category}>
                         {category}
@@ -562,8 +579,12 @@ const ProductHistoryView = () => {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-2">
-                <label htmlFor={statusSelectId} className="text-sm font-medium">
+                <label
+                  htmlFor={statusSelectId}
+                  className="text-sm font-medium block"
+                >
                   Status
                 </label>
                 <Select
@@ -574,18 +595,13 @@ const ProductHistoryView = () => {
                     <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All statuses">All statuses</SelectItem>
+                    <SelectItem value="all">All statuses</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                Clear Filters
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -610,7 +626,7 @@ const ProductHistoryView = () => {
                   {stats?.topProducts.map((product, index) => (
                     <div
                       key={product._id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                      className="flex items-center justify-between p-3 border rounded-lg"
                     >
                       <div className="flex-1">
                         <p className="font-medium text-sm">
@@ -694,7 +710,7 @@ const ProductHistoryView = () => {
                     </TableHeader>
                     <TableBody>
                       {history.map((item) => (
-                        <TableRow key={item._id} className="hover:bg-gray-50">
+                        <TableRow key={item._id}>
                           <TableCell className="font-medium">
                             {item.productName}
                           </TableCell>
@@ -746,7 +762,15 @@ const ProductHistoryView = () => {
                   <div className="text-sm text-gray-500">
                     Page {pagination.currentPage} of {pagination.totalPages}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(1)}
+                      disabled={pagination.currentPage === 1}
+                    >
+                      First
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -757,6 +781,22 @@ const ProductHistoryView = () => {
                     >
                       Previous
                     </Button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Go to page:</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        max={pagination.totalPages}
+                        value={pagination.currentPage}
+                        onChange={(e) => {
+                          const page = parseInt(e.target.value);
+                          if (page >= 1 && page <= pagination.totalPages) {
+                            handlePageChange(page);
+                          }
+                        }}
+                        className="w-16 h-8 text-center"
+                      />
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -766,6 +806,16 @@ const ProductHistoryView = () => {
                       disabled={!pagination.hasNextPage}
                     >
                       Next
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.totalPages)}
+                      disabled={
+                        pagination.currentPage === pagination.totalPages
+                      }
+                    >
+                      Last
                     </Button>
                   </div>
                 </div>
@@ -786,26 +836,23 @@ const ProductHistoryView = () => {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {stats.salesByCategory.map((category) => (
-                  <div
-                    key={category._id}
-                    className="border rounded-lg p-4 hover:bg-gray-50"
-                  >
+                  <div key={category._id} className="border rounded-lg p-4 ">
                     <h3 className="font-medium mb-2">{category._id}</h3>
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Revenue:</span>
+                        <span className="">Revenue:</span>
                         <span className="font-medium">
                           {formatCurrency(category.totalSales)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Units sold:</span>
+                        <span className="">Units sold:</span>
                         <span className="font-medium">
                           {category.totalQuantity}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Transactions:</span>
+                        <span>Transactions:</span>
                         <span className="font-medium">
                           {category.transactionCount}
                         </span>

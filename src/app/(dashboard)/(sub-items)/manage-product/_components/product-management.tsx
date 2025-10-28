@@ -161,6 +161,24 @@ export default function ProductManagement() {
   // api states for location
   const [apiLocations, setApiLocations] = useState<BatangasCityAddress[]>([]);
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+        setNewProductData({
+          ...newProductData,
+          image: reader.result as string,
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   useEffect(() => {
     const loadLocations = async () => {
       try {
@@ -352,6 +370,8 @@ export default function ProductManagement() {
 
   const handleManualAdd = () => {
     setShowAddMethodModal(false);
+    setImageFile(null);
+    setImagePreview("");
     setNewProductData({
       name: "",
       sku: "",
@@ -1311,24 +1331,33 @@ export default function ProductManagement() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="new-image">Image URL (Optional)</Label>
+              <Label htmlFor="new-image">Product Image</Label>
               <Input
                 id="new-image"
-                value={newProductData.image}
-                onChange={(e) =>
-                  setNewProductData({
-                    ...newProductData,
-                    image: e.target.value,
-                  })
-                }
-                placeholder="https://example.com/image.jpg"
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
               />
+              {imagePreview && (
+                <div className="mt-2 relative w-full h-32 border rounded-md overflow-hidden">
+                  <Image
+                    src={imagePreview}
+                    alt="Preview"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowAddProductModal(false)}
+              onClick={() => {
+                setShowAddProductModal(false);
+                setImageFile(null);
+                setImagePreview("");
+              }}
             >
               Cancel
             </Button>

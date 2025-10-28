@@ -86,9 +86,13 @@ export default function ProfileTab({ session }: { session: Session }) {
       return;
     }
 
-    // Create temporary URL for preview
-    const imageUrl = URL.createObjectURL(file);
-    setImage(imageUrl);
+    // Convert to Base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setImage(base64String);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveProfile = async () => {
@@ -96,7 +100,7 @@ export default function ProfileTab({ session }: { session: Session }) {
       setIsLoading(true);
       await authClient.updateUser({
         name: name.trim(),
-        image: image,
+        image: image, // Now contains Base64 string
       });
       toast.success("Success", {
         description: "Profile updated successfully",
@@ -399,7 +403,7 @@ export default function ProfileTab({ session }: { session: Session }) {
                 </code>
               </div>
             </div> */}
-{/* 
+            {/* 
             <div className="space-y-2">
               <Label>IP Address</Label>
               <div className="p-2 bg-muted rounded-md">
