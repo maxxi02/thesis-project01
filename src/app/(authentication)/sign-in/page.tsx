@@ -1,19 +1,24 @@
 import { SigninForm } from "@/forms/signin-form";
-import { Warehouse } from "lucide-react";
-
 import Image from "next/image";
+import Link from "next/link";
 
 export default function SigninPage() {
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
-          <a href="#" className="flex items-center gap-2 font-medium">
-            <div className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
-              <Warehouse className="size-4" />
-            </div>
-            LGW Warehouse
-          </a>
+          <Link href="/" className="flex items-center gap-0">
+            <Image
+              src={"/lgw-logo.png"}
+              alt="LGW Logo"
+              width={50}
+              height={50}
+              className="-mr-0"
+            />
+            <span className="text-xl font-bold tracking-tighter text-foreground">
+              LGW Warehouse
+            </span>
+          </Link>
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
