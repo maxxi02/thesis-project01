@@ -12,7 +12,7 @@ gsap.registerPlugin(ScrollTrigger);
 interface Props {
   session?: Session | null;
 }
-export default function Home({ session }: Props) {
+const Home = ({ session }: Props) => {
   const headerRef = useRef<HTMLDivElement>(null);
   const heroTitleRef = useRef<HTMLDivElement>(null);
   const heroDescRef = useRef<HTMLParagraphElement>(null);
@@ -491,4 +491,6 @@ export default function Home({ session }: Props) {
       </footer>
     </div>
   );
-}
+};
+
+export default Home;
