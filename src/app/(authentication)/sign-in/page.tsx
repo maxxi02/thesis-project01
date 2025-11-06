@@ -11,13 +11,11 @@ export default function SigninPage() {
             <Image
               src={"/lgw-logo.png"}
               alt="LGW Logo"
-              width={50}
-              height={50}
+              width={38}
+              height={38}
               className="-mr-0"
             />
-            <span className="text-xl font-bold tracking-tighter text-foreground">
-              LGW Warehouse
-            </span>
+            <span className="text-xl font-semibold text-foreground">LGW</span>
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-center">

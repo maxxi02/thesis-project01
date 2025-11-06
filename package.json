@@ -34,6 +34,7 @@
     "encoding": "^0.1.13",
     "firebase": "^12.1.0",
     "firebase-admin": "^13.4.0",
+    "gsap": "^3.13.0",
     "input-otp": "^1.4.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.536.0",

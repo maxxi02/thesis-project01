@@ -1,33 +1,220 @@
-import { getServerSession } from "@/better-auth/action";
+"use client";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
-
-export default async function Home() {
-  const session = await getServerSession();
-
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Session } from "@/better-auth/auth-types";
+gsap.registerPlugin(ScrollTrigger);
+interface Props {
+  session?: Session | null;
+}
+export default function Home({ session }: Props) {
+  const headerRef = useRef<HTMLDivElement>(null);
+  const heroTitleRef = useRef<HTMLDivElement>(null);
+  const heroDescRef = useRef<HTMLParagraphElement>(null);
+  const heroButtonsRef = useRef<HTMLDivElement>(null);
+  const heroImageRef = useRef<HTMLDivElement>(null);
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const featureCardsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const aboutTitleRef = useRef<HTMLDivElement>(null);
+  const aboutContentRef = useRef<(HTMLParagraphElement | null)[]>([]);
+  const aboutImageRef = useRef<HTMLDivElement>(null);
+  const contactRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Smooth scrolling
+    gsap.config({
+      autoSleep: 60,
+      force3D: true,
+      nullTargetWarn: false,
+    });
+    const ctx = gsap.context(() => {
+      // Header animation
+      gsap.from(headerRef.current, {
+        y: -100,
+        opacity: 0,
+        duration: 1,
+        ease: "power3.out",
+      });
+      // Hero animations
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      tl.from(heroTitleRef.current, {
+        y: 100,
+        opacity: 0,
+        duration: 1,
+      })
+        .from(
+          heroDescRef.current,
+          {
+            y: 50,
+            opacity: 0,
+            duration: 0.8,
+          },
+          "-=0.5"
+        )
+        .from(
+          heroButtonsRef.current,
+          {
+            y: 30,
+            opacity: 0,
+            duration: 0.8,
+          },
+          "-=0.5"
+        )
+        .from(
+          heroImageRef.current,
+          {
+            x: 100,
+            opacity: 0,
+            duration: 1,
+          },
+          "-=1"
+        );
+      // Features section animation
+      gsap.from(featuresRef.current, {
+        scrollTrigger: {
+          trigger: featuresRef.current,
+          start: "top 80%",
+          end: "top 50%",
+          scrub: 1,
+        },
+        y: 100,
+        opacity: 0,
+      });
+      // Feature cards stagger animation
+      featureCardsRef.current.forEach((card, index) => {
+        gsap.from(card, {
+          scrollTrigger: {
+            trigger: card,
+            start: "top 85%",
+            end: "top 60%",
+            scrub: 1,
+          },
+          y: 80,
+          opacity: 0,
+          delay: index * 0.2,
+        });
+      });
+      // About section animations
+      gsap.from(aboutTitleRef.current, {
+        scrollTrigger: {
+          trigger: aboutTitleRef.current,
+          start: "top 80%",
+          end: "top 60%",
+          scrub: 1,
+        },
+        y: 60,
+        opacity: 0,
+      });
+      aboutContentRef.current.forEach((content, index) => {
+        gsap.from(content, {
+          scrollTrigger: {
+            trigger: content,
+            start: "top 85%",
+            end: "top 65%",
+            scrub: 1,
+          },
+          x: -50,
+          opacity: 0,
+          delay: index * 0.1,
+        });
+      });
+      gsap.from(aboutImageRef.current, {
+        scrollTrigger: {
+          trigger: aboutImageRef.current,
+          start: "top 85%",
+          end: "top 60%",
+          scrub: 1,
+        },
+        x: 100,
+        opacity: 0,
+        scale: 0.9,
+      });
+      // Contact section animation
+      gsap.from(contactRef.current, {
+        scrollTrigger: {
+          trigger: contactRef.current,
+          start: "top 80%",
+          end: "top 60%",
+          scrub: 1,
+        },
+        y: 80,
+        opacity: 0,
+      });
+    });
+    // Cleanup
+    return () => {
+      ctx.revert();
+      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+    };
+  }, []);
   return (
     <div className="min-h-screen w-full bg-background">
+      {/* Header */}
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 md:px-12 py-4"
+      >
+        <div className="flex items-center justify-between max-w-6xl mx-auto">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/lgw-logo.png"
+              alt="LGW Logo"
+              width={38}
+              height={38}
+              className="object-contain"
+            />
+            <span className="text-xl font-semibold text-foreground">LGW</span>
+          </Link>
+          <nav className="hidden lg:flex items-center gap-8">
+            <Link
+              href="#features"
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Features
+            </Link>
+            <Link
+              href="#about"
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              About
+            </Link>
+            <Link
+              href="#contact"
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Contact
+            </Link>
+          </nav>
+        </div>
+      </header>
       {/* Hero Section */}
       <section className="pt-20 flex flex-col lg:flex-row items-center justify-between px-6 md:px-12 py-16 md:py-24 gap-12 min-h-screen">
         <div className="flex-1 flex flex-col gap-6">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+          <h1
+            ref={heroTitleRef}
+            className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight"
+          >
             Revolutionize Your Inventory Control
           </h1>
-          <p className="text-lg text-muted-foreground max-w-lg">
+          <p
+            ref={heroDescRef}
+            className="text-lg text-muted-foreground max-w-lg"
+          >
             LGW Warehouse Management System uses advanced ML-driven automation
             to eliminate manual inefficiencies in stock logging, item
             categorization, and order fulfillment for construction materials and
             hardware supplies.
           </p>
-          <div className="flex gap-4 pt-4">
+          <div ref={heroButtonsRef} className="flex gap-4 pt-4">
             {session ? (
               <Button
                 asChild
                 size="lg"
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
-                <Link href={"/dashboard"}>Get Started</Link>
+                <Link href="/dashboard">Get Started</Link>
               </Button>
             ) : (
               <Button
@@ -35,7 +222,7 @@ export default async function Home() {
                 size="lg"
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
-                <Link href={"/sign-in"}>Get Started</Link>
+                <Link href="/sign-in">Get Started</Link>
               </Button>
             )}
             <Button asChild variant="outline" size="lg">
@@ -47,9 +234,12 @@ export default async function Home() {
         </div>
         {/* Warehouse Image with Wavy Container */}
         <div className="flex-1 flex justify-center items-center w-full">
-          <div className="relative w-full max-w-2xl">
+          <div className="relative w-full h-full">
             {/* Image with wavy clip */}
-            <div className="relative w-full aspect-square overflow-hidden">
+            <div
+              ref={heroImageRef}
+              className="relative w-full h-full aspect-square overflow-hidden"
+            >
               <Image
                 src="/hero-section-img.jpg"
                 alt="Warehouse management system"
@@ -60,18 +250,25 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
       {/* Features Section */}
       <section
         id="features"
         className="px-6 md:px-12 py-16 md:py-24 bg-card border-t border-border scroll-smooth"
       >
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-12 text-center text-foreground">
-            Powerful Features
+          <h2
+            ref={featuresRef}
+            className="text-3xl md:text-4xl font-bold mb-12 text-center text-foreground"
+          >
+            Features
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="flex flex-col gap-4 p-6 rounded-lg border border-border bg-background">
+            <div
+              ref={(el) => {
+                featureCardsRef.current[0] = el;
+              }}
+              className="flex flex-col gap-4 p-6 rounded-lg border border-border bg-background"
+            >
               <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center text-xl">
                 🤖
               </div>
@@ -83,7 +280,12 @@ export default async function Home() {
                 electrical wiring using advanced machine learning algorithms.
               </p>
             </div>
-            <div className="flex flex-col gap-4 p-6 rounded-lg border border-border bg-background">
+            <div
+              ref={(el) => {
+                featureCardsRef.current[1] = el;
+              }}
+              className="flex flex-col gap-4 p-6 rounded-lg border border-border bg-background"
+            >
               <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center text-xl">
                 📊
               </div>
@@ -95,7 +297,12 @@ export default async function Home() {
                 real-time visibility into your inventory operations.
               </p>
             </div>
-            <div className="flex flex-col gap-4 p-6 rounded-lg border border-border bg-background">
+            <div
+              ref={(el) => {
+                featureCardsRef.current[2] = el;
+              }}
+              className="flex flex-col gap-4 p-6 rounded-lg border border-border bg-background"
+            >
               <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center text-xl">
                 🚚
               </div>
@@ -110,38 +317,55 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
       {/* About Section */}
       <section
         id="about"
         className="px-6 md:px-12 py-16 md:py-24 bg-background border-t border-border scroll-smooth"
       >
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center text-foreground">
+          <h2
+            ref={aboutTitleRef}
+            className="text-3xl md:text-4xl font-bold mb-8 text-center text-foreground"
+          >
             About LGW
           </h2>
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="flex flex-col gap-6">
-              <p className="text-lg text-muted-foreground">
+              <p
+                ref={(el) => {
+                  aboutContentRef.current[0] = el;
+                }}
+                className="text-lg text-muted-foreground"
+              >
                 At LGW Warehouse Management System, we transform inventory
                 management for construction materials and hardware supplies
                 through automation and machine learning.
               </p>
-              <p className="text-lg text-muted-foreground">
+              <p
+                ref={(el) => {
+                  aboutContentRef.current[1] = el;
+                }}
+                className="text-lg text-muted-foreground"
+              >
                 Using real-time analytics and ML-powered object detection, our
                 system removes manual inefficiencies in stock logging,
                 categorization, and order fulfillment. It efficiently manages
                 high-volume inventories like cement, steel bars, and plumbing
                 fixtures.
               </p>
-              <p className="text-lg text-muted-foreground">
+              <p
+                ref={(el) => {
+                  aboutContentRef.current[2] = el;
+                }}
+                className="text-lg text-muted-foreground"
+              >
                 With comprehensive logistics tracking, it delivers real-time
                 shipment updates, delivery estimates, and full supply chain
                 visibility to optimize operations, boost efficiency, and reduce
                 costs.
               </p>
             </div>
-            <div className="flex justify-center">
+            <div ref={aboutImageRef} className="flex justify-center">
               <Image
                 src="/team-working-in-warehouse-office.jpg"
                 alt="Our team"
@@ -153,10 +377,10 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
       {/* Contact Section */}
       <section
         id="contact"
+        ref={contactRef}
         className="px-6 md:px-12 py-16 md:py-24 text-center bg-card border-t border-border scroll-smooth"
       >
         <div className="max-w-2xl mx-auto">
@@ -199,7 +423,7 @@ export default async function Home() {
               size="lg"
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              <Link href={"/dashboard"}>Get Started</Link>
+              <Link href="/dashboard">Get Started</Link>
             </Button>
           ) : (
             <Button
@@ -207,12 +431,11 @@ export default async function Home() {
               size="lg"
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              <Link href={"/sign-in"}>Get Started</Link>
+              <Link href="/sign-in">Get Started</Link>
             </Button>
           )}
         </div>
       </section>
-
       {/* Footer */}
       <footer className="bg-card text-muted-foreground px-6 md:px-12 py-8 border-t border-border">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
