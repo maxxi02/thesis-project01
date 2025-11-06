@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,11 +8,22 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Session } from "@/better-auth/auth-types";
 import { Mail, Phone } from "lucide-react";
 import { FaFacebook } from "react-icons/fa6";
+import { getServerSession } from "@/better-auth/action";
 gsap.registerPlugin(ScrollTrigger);
-interface Props {
-  session?: Session | null;
-}
-const Home = ({ session }: Props) => {
+
+const Home = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  useEffect(() => {
+    // Fetch session here using your auth method
+    // Example: const session = await auth();
+    // setSession(session);
+    const fetchSession = async () => {
+      const session = await getServerSession();
+      setSession(session);
+    };
+    fetchSession();
+  }, []);
+
   const headerRef = useRef<HTMLDivElement>(null);
   const heroTitleRef = useRef<HTMLDivElement>(null);
   const heroDescRef = useRef<HTMLParagraphElement>(null);
@@ -24,6 +35,7 @@ const Home = ({ session }: Props) => {
   const aboutContentRef = useRef<(HTMLParagraphElement | null)[]>([]);
   const aboutImageRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     // Smooth scrolling
     gsap.config({
