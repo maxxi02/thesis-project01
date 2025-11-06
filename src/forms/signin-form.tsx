@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/input-otp";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { Checkbox } from "@/components/ui/checkbox";
-import Image from "next/image";
 
 const formSchema = z.object({
   code: z

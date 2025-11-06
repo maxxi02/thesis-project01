@@ -6,6 +6,8 @@ import Link from "next/link";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Session } from "@/better-auth/auth-types";
+import { Mail, Phone } from "lucide-react";
+import { FaFacebook } from "react-icons/fa6";
 gsap.registerPlugin(ScrollTrigger);
 interface Props {
   session?: Session | null;
@@ -367,7 +369,7 @@ export default function Home({ session }: Props) {
             </div>
             <div ref={aboutImageRef} className="flex justify-center">
               <Image
-                src="/team-working-in-warehouse-office.jpg"
+                src="/our-team.jpg"
                 alt="Our team"
                 className="w-full max-w-sm rounded-lg shadow-lg"
                 width={500}
@@ -381,47 +383,88 @@ export default function Home({ session }: Props) {
       <section
         id="contact"
         ref={contactRef}
-        className="px-6 md:px-12 py-16 md:py-24 text-center bg-card border-t border-border scroll-smooth"
+        className="px-6 md:px-12 py-16 md:py-24 text-center bg-gradient-to-b from-card to-muted/50 border-t border-border scroll-mt-20 relative overflow-hidden"
       >
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">
-            Get In Touch
-          </h2>
-          <p className="text-lg text-muted-foreground mb-8">
-            Ready to transform your warehouse operations? Contact us today to
-            schedule a demo or learn more about LGW.
-          </p>
-          <div className="flex flex-col md:flex-row gap-6 justify-center mb-8">
-            <div className="flex flex-col gap-2">
-              <h3 className="font-semibold text-foreground">Email</h3>
-              <a
+        {/* Subtle background pattern or wave for design flair */}
+        <div className="absolute inset-0 opacity-5">
+          <svg
+            className="w-full h-full"
+            fill="currentColor"
+            viewBox="0 0 100 100"
+          >
+            <defs>
+              <pattern
+                id="grain"
+                width="100"
+                height="100"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx="25" cy="25" r="1" />
+                <circle cx="75" cy="75" r="1" />
+                <circle cx="50" cy="10" r="0.5" />
+                <circle cx="10" cy="60" r="0.8" />
+              </pattern>
+            </defs>
+            <rect width="100" height="100" fill="url(#grain)" />
+          </svg>
+        </div>
+
+        <div className="max-w-2xl mx-auto relative z-10">
+          <div className="mb-8">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Get In Touch
+            </h2>
+            <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
+              For more information, please contact LGW Hardware on the following
+              platforms.
+            </p>
+          </div>
+
+          {/* Contact Methods with Icons */}
+          <div className="flex flex-col md:flex-row gap-8 justify-center mb-12">
+            {/* Email */}
+            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+              <Mail className="h-8 w-8 text-primary mb-2" />
+              <h3 className="font-semibold text-foreground text-sm">Email</h3>
+              <Link
                 href="mailto:info@lgw.com"
-                className="text-primary hover:text-primary/80 transition"
+                className="text-primary hover:text-primary/80 transition text-sm font-medium"
               >
-                info@lgw.com
-              </a>
+                lgwhardware@gmail.com
+              </Link>
             </div>
-            <div className="flex flex-col gap-2">
-              <h3 className="font-semibold text-foreground">Phone</h3>
-              <a
+
+            {/* Add Phone (example) */}
+            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+              <Phone className="h-8 w-8 text-primary mb-2" />
+              <h3 className="font-semibold text-foreground text-sm">Phone</h3>
+              <Link
                 href="tel:+1234567890"
-                className="text-primary hover:text-primary/80 transition"
+                className="text-primary hover:text-primary/80 transition text-sm font-medium"
               >
-                Please add your number here
-              </a>
+                09936090374
+              </Link>
             </div>
-            <div className="flex flex-col gap-2">
-              <h3 className="font-semibold text-foreground">Address</h3>
-              <p className="text-muted-foreground">
-                123 Logistics Ave, Tech City, TC 12345
-              </p>
+            {/*facebook */}
+            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+              <FaFacebook className="h-8 w-8 text-primary mb-2" />
+              <h3 className="font-semibold text-foreground text-sm">
+                Facebook
+              </h3>
+              <Link
+                href="tel:+1234567890"
+                className="text-primary hover:text-primary/80 transition text-sm font-medium"
+              >
+                LGW Hardware
+              </Link>
             </div>
           </div>
+          {/* CTA Button */}
           {session ? (
             <Button
               asChild
               size="lg"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all duration-300 transform hover:scale-105"
             >
               <Link href="/dashboard">Get Started</Link>
             </Button>
@@ -429,7 +472,7 @@ export default function Home({ session }: Props) {
             <Button
               asChild
               size="lg"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all duration-300 transform hover:scale-105"
             >
               <Link href="/sign-in">Get Started</Link>
             </Button>
@@ -438,21 +481,10 @@ export default function Home({ session }: Props) {
       </section>
       {/* Footer */}
       <footer className="bg-card text-muted-foreground px-6 md:px-12 py-8 border-t border-border">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="max-w-6xl mx-auto flex flex-col items-center gap-4 text-center">
           <p>
             &copy; 2025 LGW Warehouse Management System. All rights reserved.
           </p>
-          <div className="flex gap-6">
-            <a href="#" className="hover:text-foreground transition">
-              Privacy
-            </a>
-            <a href="#" className="hover:text-foreground transition">
-              Terms
-            </a>
-            <a href="#" className="hover:text-foreground transition">
-              Support
-            </a>
-          </div>
         </div>
       </footer>
     </div>
