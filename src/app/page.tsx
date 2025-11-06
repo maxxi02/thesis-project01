@@ -158,16 +158,18 @@ export default function Home({ session }: Props) {
         ref={headerRef}
         className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 md:px-12 py-4"
       >
-        <div className="flex items-center justify-between max-w-6xl mx-auto">
+        <div className="flex items-center md:justify-between justify-center max-w-6xl mx-auto">
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/lgw-logo.png"
               alt="LGW Logo"
-              width={38}
-              height={38}
-              className="object-contain"
+              width={32}
+              height={32}
+              className="object-contain md:w-[38px] md:h-[38px]"
             />
-            <span className="text-xl font-semibold text-foreground">LGW</span>
+            <span className="text-lg md:text-xl font-semibold text-foreground">
+              LGW
+            </span>
           </Link>
           <nav className="hidden lg:flex items-center gap-8">
             <Link
