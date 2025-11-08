@@ -14,9 +14,6 @@ gsap.registerPlugin(ScrollTrigger);
 const Home = () => {
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
-    // Fetch session here using your auth method
-    // Example: const session = await auth();
-    // setSession(session);
     const fetchSession = async () => {
       const session = await getServerSession();
       setSession(session);
