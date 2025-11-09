@@ -1527,10 +1527,14 @@ export default function ProductManagement() {
                 <SelectTrigger>
                   <SelectValue placeholder="Choose delivery personnel" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="wrap-break-word">
                   {deliveryPersonnel.map((driver) => (
-                    <SelectItem key={driver.id} value={driver.id}>
-                      {driver.name} - {driver.email}
+                    <SelectItem
+                      className="wrap-break-word"
+                      key={driver.id}
+                      value={driver.id}
+                    >
+                      {driver.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
