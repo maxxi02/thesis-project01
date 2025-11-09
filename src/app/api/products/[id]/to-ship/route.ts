@@ -17,6 +17,14 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const allowedRoles = ["admin", "cashier"];
+    if (!allowedRoles.includes(session.user.role?.toLowerCase() || "")) {
+      return NextResponse.json(
+        { error: "Insufficient permissions to create shipments" },
+        { status: 403 }
+      );
+    }
+
     await connectDB();
 
     const { id } = await params;

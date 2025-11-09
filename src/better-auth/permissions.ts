@@ -1,6 +1,8 @@
 import { createAccessControl } from "better-auth/plugins/access";
-import { adminAc } from "better-auth/plugins/admin/access";
+import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";  
+
 export const statement = {
+  ...defaultStatements,
   products: ["create", "read", "update", "delete", "sell"],
   orders: ["create", "read", "update", "delete"],
   shipments: ["create", "read", "update", "delete"],
@@ -12,12 +14,13 @@ export const admin = ac.newRole({
   products: ["create", "read", "update", "delete", "sell"],
   orders: ["create", "read", "update", "delete"],
   shipments: ["create", "read", "update", "delete"],
-  ...adminAc.statements,
+  ...adminAc.statements, 
 });
 
 export const cashier = ac.newRole({
   products: ["read", "sell"],
   orders: ["create", "read"],
+  user: ["list"],  
 });
 
 export const delivery = ac.newRole({

@@ -26,13 +26,13 @@ export default function SigninPage() {
           </div>
         </div>
       </div>
-      <div className="m-10 relative hidden lg:block">
+      <div className="bg-muted relative hidden lg:block">
         <Image
           width={500}
           height={500}
-          src="/signin-img.png"
+          src="/hotdog123.jpg"
           alt="Image"
-          className="absolute inset-0 h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       </div>
     </div>

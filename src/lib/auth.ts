@@ -4,6 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { db } from "@/database/mongodb";
 import { getResend } from "./resend/resend";
+import { admin, cashier, delivery, user, ac } from "@/better-auth/permissions";
 
 const resend = getResend();
 
@@ -54,8 +55,13 @@ export const auth = betterAuth({
   },
   plugins: [
     adminPlugin({
-      adminRoles: ["admin"],
-      defaultRole: "user",
+      ac,
+      roles: {
+        admin,
+        cashier,
+        delivery,
+        user,
+      },
     }),
     twoFactor({
       skipVerificationOnEnable: true,
