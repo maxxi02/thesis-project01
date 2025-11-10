@@ -659,7 +659,7 @@ export const DeliveryTab = () => {
                       (notification, index) => (
                         <div
                           key={index}
-                          className="bg-gray-50 p-3 rounded text-sm"
+                          className=" p-3 rounded text-sm"
                         >
                           <p>
                             {notification.message ||

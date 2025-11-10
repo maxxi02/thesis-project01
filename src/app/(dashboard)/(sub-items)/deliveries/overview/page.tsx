@@ -1,4 +1,3 @@
-// app/(dashboard)/deliveries/overview/page.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +11,7 @@ import {
   RefreshCw,
   Truck,
   Clock,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -19,6 +19,15 @@ import { Session } from "@/better-auth/auth-types";
 import { NotificationHelper } from "../../../../../notification/notification-helper";
 import { getServerSession } from "@/better-auth/action";
 import { useRouter } from "next/navigation";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 interface DeliveryAssignment {
   id: string;
@@ -54,8 +63,39 @@ export default function DeliveryOverview() {
   const [loading, setLoading] = useState(true);
   const [userSession, setUserSession] = useState<Session | null>(null);
   const sseConnectionRef = useRef<EventSource | null>(null);
-
+  const [archivedCount, setArchivedCount] = useState(0);
+  const [date, setDate] = useState<Date | undefined>(new Date());
   const router = useRouter();
+
+  const fetchArchivedCount = async (userEmail: string) => {
+    try {
+      const response = await fetch(
+        `/api/deliveries/archived/count?driverEmail=${encodeURIComponent(
+          userEmail
+        )}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setArchivedCount(data.count || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching archived count:", error);
+    }
+  };
+
+  // Extract unique assigned dates for calendar marking
+  const getAssignedDates = (): Date[] => {
+    const dates = assignments.map((a) => new Date(a.assignedDate));
+    // Filter unique dates (by day)
+    const uniqueDates = new Map();
+    dates.forEach((d) => {
+      const dateKey = d.toISOString().split("T")[0];
+      uniqueDates.set(dateKey, d);
+    });
+    return Array.from(uniqueDates.values());
+  };
+
+  const assignedDates = getAssignedDates();
 
   const setupSSEConnection = (userId: string, userEmail: string) => {
     if (sseConnectionRef.current) {
@@ -123,6 +163,7 @@ export default function DeliveryOverview() {
       if (session?.user?.email) {
         setUserSession(session);
         await fetchAssignments(session.user.email);
+        await fetchArchivedCount(session.user.email);
         await NotificationHelper.initialize();
       } else {
         setLoading(false);
@@ -187,7 +228,9 @@ export default function DeliveryOverview() {
       total: assignments.length,
       pending: assignments.filter((a) => a.status === "pending").length,
       inTransit: assignments.filter((a) => a.status === "in-transit").length,
-      delivered: assignments.filter((a) => a.status === "delivered").length,
+      delivered:
+        assignments.filter((a) => a.status === "delivered").length +
+        archivedCount,
       cancelled: assignments.filter((a) => a.status === "cancelled").length,
     };
   };
@@ -195,7 +238,6 @@ export default function DeliveryOverview() {
   const stats = getDeliveryStats();
   const hasActiveDelivery = assignments.some((a) => a.status === "in-transit");
   const activeDelivery = assignments.find((a) => a.status === "in-transit");
-
   const sortedAssignments = [...assignments].sort((a, b) => {
     const statusOrder = {
       "in-transit": 0,
@@ -272,11 +314,51 @@ export default function DeliveryOverview() {
             />
             Refresh
           </Button>
+          {/* Calendar Sheet Trigger */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm">
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                Delivery Calendar
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[400px] sm:w-[450px]">
+              <SheetHeader>
+                <SheetTitle>Delivery Calendar</SheetTitle>
+                <SheetDescription>
+                  View all dates with assigned deliveries marked in blue.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  className="rounded-md border"
+                  required={false}
+                  modifiers={{
+                    assigned: assignedDates,
+                  }}
+                  modifiersClassNames={{
+                    assigned: "bg-blue-100 text-blue-800 hover:bg-blue-200",
+                  }}
+                  modifiersStyles={{
+                    assigned: {
+                      border: "2px solid blue",
+                      fontWeight: "bold",
+                    },
+                  }}
+                />
+                <p className="text-sm text-muted-foreground mt-4 text-center">
+                  {assignedDates.length} delivery dates marked
+                </p>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
-
       {hasActiveDelivery && activeDelivery && (
-        <Alert className="border-blue-200 bg-blue-50">
+        <Alert className="">
           <Truck className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
             <div className="flex items-center justify-between">
@@ -295,7 +377,6 @@ export default function DeliveryOverview() {
           </AlertDescription>
         </Alert>
       )}
-
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -347,10 +428,12 @@ export default function DeliveryOverview() {
             <div className="text-2xl font-bold text-green-600">
               {stats.delivered}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Including archived deliveries
+            </p>
           </CardContent>
         </Card>
       </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Recent Assignments</CardTitle>
@@ -372,9 +455,7 @@ export default function DeliveryOverview() {
                 <div
                   key={assignment.id}
                   className={`flex items-center justify-between p-4 border rounded-lg ${
-                    assignment.status === "in-transit"
-                      ? "bg-blue-50 border-blue-200"
-                      : ""
+                    assignment.status === "in-transit" ? "" : ""
                   }`}
                 >
                   <div className="flex items-center gap-3">

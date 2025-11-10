@@ -177,7 +177,7 @@ export default function ProfileTab({ session }: { session: Session }) {
     image !== (session.user?.image || "");
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-6 lg:grid-cols-1">
       {/* Personal Information Card */}
       <Card className="lg:col-span-1">
         <CardHeader>
@@ -378,69 +378,6 @@ export default function ProfileTab({ session }: { session: Session }) {
             >
               Cancel
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Session Information Card */}
-      <Card className="lg:col-span-1">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Session Information
-          </CardTitle>
-          <CardDescription>
-            View details about your current session and authentication status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4">
-            {/* <div className="space-y-2">
-              <Label>Session ID</Label>
-              <div className="p-2 bg-muted rounded-md">
-                <code className="text-sm font-mono break-all">
-                  {session.session.id}
-                </code>
-              </div>
-            </div> */}
-            {/* 
-            <div className="space-y-2">
-              <Label>IP Address</Label>
-              <div className="p-2 bg-muted rounded-md">
-                <code className="text-sm font-mono">
-                  {session.session.ipAddress}
-                </code>
-              </div>
-            </div> */}
-
-            <div className="space-y-2">
-              <Label>User Agent</Label>
-              <div className="p-2 bg-muted rounded-md max-h-20 overflow-y-auto">
-                <code className="text-sm font-mono break-all">
-                  {session.session.userAgent}
-                </code>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Session Started</Label>
-                <div className="p-2 bg-muted rounded-md">
-                  <code className="text-sm font-mono">
-                    {formatDate(session.session.createdAt)}
-                  </code>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Session Expires</Label>
-                <div className="p-2 bg-muted rounded-md">
-                  <code className="text-sm font-mono">
-                    {formatDate(session.session.expiresAt)}
-                  </code>
-                </div>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
