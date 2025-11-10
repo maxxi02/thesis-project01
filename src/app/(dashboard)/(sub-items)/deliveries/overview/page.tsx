@@ -223,17 +223,17 @@ export default function DeliveryOverview() {
     }
   };
 
-  const getDeliveryStats = () => {
-    return {
-      total: assignments.length,
-      pending: assignments.filter((a) => a.status === "pending").length,
-      inTransit: assignments.filter((a) => a.status === "in-transit").length,
-      delivered:
-        assignments.filter((a) => a.status === "delivered").length +
-        archivedCount,
-      cancelled: assignments.filter((a) => a.status === "cancelled").length,
-    };
+const getDeliveryStats = () => {
+  return {
+    total: assignments.length,
+    pending: assignments.filter((a) => a.status === "pending").length,
+    inTransit: assignments.filter((a) => a.status === "in-transit").length,
+    delivered:
+      assignments.filter((a) => a.status === "delivered").length +
+      archivedCount,
+    cancelled: assignments.filter((a) => a.status === "cancelled").length,
   };
+};
 
   const stats = getDeliveryStats();
   const hasActiveDelivery = assignments.some((a) => a.status === "in-transit");
@@ -329,12 +329,12 @@ export default function DeliveryOverview() {
                   View all dates with assigned deliveries marked in blue.
                 </SheetDescription>
               </SheetHeader>
-              <div className="mt-4">
+              <div className="m-2">
                 <Calendar
                   mode="single"
                   selected={date}
                   onSelect={setDate}
-                  className="rounded-md border"
+                  className="rounded-md border w-full"
                   required={false}
                   modifiers={{
                     assigned: assignedDates,

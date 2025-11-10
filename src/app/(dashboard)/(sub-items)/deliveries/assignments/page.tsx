@@ -463,6 +463,23 @@ export default function DeliveryAssignments() {
   } | null>(null);
   const sseConnectionRef = useRef<EventSource | null>(null);
 
+  const [archivedCount, setArchivedCount] = useState(0);
+
+  const fetchArchivedCount = async (userEmail: string) => {
+    try {
+      const response = await fetch(
+        `/api/deliveries/archived/count?driverEmail=${encodeURIComponent(
+          userEmail
+        )}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setArchivedCount(data.count || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching archived count:", error);
+    }
+  };
   const setupSSEConnection = (userId: string, userEmail: string) => {
     if (sseConnectionRef.current) {
       sseConnectionRef.current.close();
@@ -478,6 +495,7 @@ export default function DeliveryAssignments() {
           case "DELIVERY_STATUS_UPDATE":
             if (userSession?.user.email) {
               fetchAssignments(userSession.user.email);
+              fetchArchivedCount(userSession.user.email);
             }
             break;
           case "NEW_ASSIGNMENT":
@@ -538,6 +556,7 @@ export default function DeliveryAssignments() {
       if (session?.user?.email) {
         setUserSession(session);
         await fetchAssignments(session.user.email);
+        await fetchArchivedCount(session.user.email);
         await NotificationHelper.initialize();
       } else {
         setLoading(false);
@@ -645,9 +664,13 @@ export default function DeliveryAssignments() {
       );
       if (newStatus === "delivered") {
         toast.success("Delivery Completed", {
-          description:
-            "Great job! This delivery will be archived in a few seconds.",
+          description: "Great job! This delivery has been archived.",
         });
+        // Immediately refetch to update counts (no delay needed)
+        if (userSession?.user.email) {
+          await fetchAssignments(userSession.user.email);
+          await fetchArchivedCount(userSession.user.email);
+        }
       } else if (newStatus === "cancelled") {
         toast.success("Delivery Cancelled");
       } else if (newStatus === "in-transit") {
@@ -677,7 +700,6 @@ export default function DeliveryAssignments() {
       );
     }
   };
-
   const toggleCardExpansion = (assignmentId: string) => {
     setExpandedCards((prev) => {
       const newSet = new Set(prev);

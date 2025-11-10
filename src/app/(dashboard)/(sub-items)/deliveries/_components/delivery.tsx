@@ -400,6 +400,7 @@ export default function Delivery() {
     address?: string;
   } | null>(null);
   const sseConnectionRef = useRef<EventSource | null>(null);
+  const [archivedCount, setArchivedCount] = useState(0);
 
   const setupSSEConnection = (userId: string, userEmail: string) => {
     if (sseConnectionRef.current) {
@@ -515,6 +516,22 @@ export default function Delivery() {
     }
   }, []);
 
+  const fetchArchivedCount = async (userEmail: string) => {
+    try {
+      const response = await fetch(
+        `/api/deliveries/archived/count?driverEmail=${encodeURIComponent(
+          userEmail
+        )}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setArchivedCount(data.count || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching archived count:", error);
+    }
+  };
+
   const fetchAssignments = async (userEmail: string) => {
     try {
       setLoading(true);
@@ -606,6 +623,13 @@ export default function Delivery() {
         toast.success("Delivery Completed", {
           description:
             "Great job! This delivery will be archived in a few seconds.",
+        });
+        fetch("/api/deliveries/auto-cleanup", { method: "POST" }).then(() => {
+          // Refetch after cleanup
+          if (userSession?.user.email) {
+            fetchAssignments(userSession.user.email);
+            fetchArchivedCount(userSession.user.email);
+          }
         });
 
         // Auto-remove completed delivery
