@@ -1,17 +1,12 @@
 // app/api/deliveries/assigned/route.ts
-import { getServerSession } from "@/better-auth/action";
-import { ToShip } from "@/models/toship";
-import { connectDB } from "@/database/mongodb";
 import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/database/mongodb";
+import { ToShip } from "@/models/toship";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     await connectDB();
+
     const { searchParams } = new URL(request.url);
     const driverEmail = searchParams.get("driverEmail");
 
@@ -22,41 +17,53 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const deliveries = await ToShip.find({
-      "deliveryPersonnel.email": driverEmail,
-      status: { $in: ["pending", "in-transit", "delivered", "cancelled"] },
+    const assignments = await ToShip.find({
+      "deliveryPersonnel.email": driverEmail.toLowerCase(),
+      status: { $in: ["pending", "in-transit"] },
     }).sort({ createdAt: -1 });
 
-    const formattedDeliveries = deliveries.map((delivery) => ({
-      id: delivery._id.toString(),
+    if (!assignments || assignments.length === 0) {
+      return NextResponse.json(
+        { error: "No assignments found" },
+        { status: 404 }
+      );
+    }
+
+    const formattedAssignments = assignments.map((assignment) => ({
+      id: assignment._id.toString(),
       product: {
-        name: delivery.productName,
-        image: delivery.productImage,
-        quantity: delivery.quantity,
+        name: assignment.productName,
+        image: assignment.productImage,
+        quantity: assignment.quantity,
       },
       customerAddress: {
-        destination: delivery.destination,
-        // INCLUDE COORDINATES
-        coordinates: delivery.destinationCoordinates
+        destination: assignment.destination,
+        coordinates: assignment.destinationCoordinates
           ? {
-              lat: delivery.destinationCoordinates.lat,
-              lng: delivery.destinationCoordinates.lng,
+              lat: assignment.destinationCoordinates.lat,
+              lng: assignment.destinationCoordinates.lng,
             }
-          : null,
+          : undefined,
       },
       driver: {
-        fullName: delivery.deliveryPersonnel.fullName,
-        email: delivery.deliveryPersonnel.email,
+        fullName: assignment.deliveryPersonnel.fullName,
+        email: assignment.deliveryPersonnel.email,
       },
-      status: delivery.status,
-      note: delivery.note,
-      assignedDate: delivery.createdAt.toISOString(),
-      markedBy: delivery.markedBy,
+      status: assignment.status,
+      note: assignment.note || undefined,
+      assignedDate: assignment.createdAt,
+      startedAt: assignment.startedAt || undefined,
+      deliveredAt: assignment.deliveredAt || undefined,
+      estimatedDelivery: assignment.estimatedDelivery || undefined, // Add this line
+      markedBy: {
+        name: assignment.markedBy.name,
+        email: assignment.markedBy.email,
+      },
     }));
 
-    return NextResponse.json(formattedDeliveries);
+    return NextResponse.json(formattedAssignments);
   } catch (error) {
-    console.error("Error fetching deliveries:", error);
+    console.error("Error fetching assignments:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

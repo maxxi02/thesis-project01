@@ -6,19 +6,22 @@ import { connectDB } from "@/database/mongodb";
 import { Product } from "@/models/product";
 import { ToShip } from "@/models/toship";
 import { sendNotificationToDriver } from "@/sse/notification";
+import mongoose from "mongoose";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await mongoose.startSession();
+
   try {
-    const session = await getServerSession();
-    if (!session?.user) {
+    const userSession = await getServerSession();
+    if (!userSession?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const allowedRoles = ["admin", "cashier"];
-    if (!allowedRoles.includes(session.user.role?.toLowerCase() || "")) {
+    if (!allowedRoles.includes(userSession.user.role?.toLowerCase() || "")) {
       return NextResponse.json(
         { error: "Insufficient permissions to create shipments" },
         { status: 403 }
@@ -37,6 +40,7 @@ export async function POST(
       note = "",
       markedBy,
       estimatedDelivery,
+      coordinates, // Get coordinates from frontend
     } = body;
 
     // Validation
@@ -54,14 +58,19 @@ export async function POST(
       );
     }
 
-    // Find the product
-    const product = await Product.findById(id);
+    // Start transaction to prevent duplicate deliveries
+    session.startTransaction();
+
+    // Find and lock the product
+    const product = await Product.findById(id).session(session);
     if (!product) {
+      await session.abortTransaction();
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
     // Check stock
     if (product.stock < quantity) {
+      await session.abortTransaction();
       return NextResponse.json(
         {
           error: `Insufficient stock. Available: ${product.stock}, Requested: ${quantity}`,
@@ -70,8 +79,25 @@ export async function POST(
       );
     }
 
-    const coordinates = await geocodeAddress(destination.trim());
-    console.log(`Geocoding result:`, coordinates);
+    // Update product stock immediately within transaction
+    product.stock -= quantity;
+    product.updatedBy = {
+      name: markedBy.name,
+      role: markedBy.role,
+    };
+    await product.save({ session });
+
+    // Use coordinates from frontend or fallback to geocoding
+    let finalCoordinates = coordinates;
+    if (!finalCoordinates) {
+      try {
+        finalCoordinates = await geocodeAddress(destination.trim());
+        console.log(`Geocoding result:`, finalCoordinates);
+      } catch (geocodeError) {
+        console.error("Geocoding failed:", geocodeError);
+      }
+    }
+
     // Create ToShip record
     const toShipItem = new ToShip({
       productId: product._id,
@@ -83,13 +109,13 @@ export async function POST(
         id: deliveryPersonnel.id,
         fullName: deliveryPersonnel.fullName.trim(),
         email: deliveryPersonnel.email.trim().toLowerCase(),
-        fcmToken: deliveryPersonnel.fcmToken || "", // Add FCM token if available
+        fcmToken: deliveryPersonnel.fcmToken || "",
       },
       destination: destination.trim(),
-      destinationCoordinates: coordinates
+      destinationCoordinates: finalCoordinates
         ? {
-            lat: coordinates.lat,
-            lng: coordinates.lng,
+            lat: finalCoordinates.lat,
+            lng: finalCoordinates.lng,
           }
         : null,
       note: note.trim(),
@@ -108,63 +134,50 @@ export async function POST(
       ],
     });
 
-    // Save the ToShip item
-    await toShipItem.save();
-    try {
-      if (deliveryPersonnel.fcmToken) {
-        await sendNotificationToDriver(deliveryPersonnel.fcmToken, {
-          productName: product.name,
-          quantity,
-          destination,
-          estimatedDelivery: estimatedDelivery
-            ? new Date(estimatedDelivery)
-            : undefined,
-        });
+    await toShipItem.save({ session });
 
-        // Update notification status
-        toShipItem.notifications.push({
-          type: "notification_sent",
-          read: false,
-        });
-        await toShipItem.save();
+    // Commit transaction
+    await session.commitTransaction();
+
+    // Send notifications AFTER successful transaction (non-blocking)
+    setImmediate(async () => {
+      try {
+        if (deliveryPersonnel.fcmToken) {
+          await sendNotificationToDriver(deliveryPersonnel.fcmToken, {
+            productName: product.name,
+            quantity,
+            destination,
+            estimatedDelivery: estimatedDelivery
+              ? new Date(estimatedDelivery)
+              : undefined,
+          });
+        }
+      } catch (notificationError) {
+        console.error("Failed to send FCM notification:", notificationError);
       }
-    } catch (notificationError) {
-      console.error("Failed to send notification:", notificationError);
-      // Continue even if notification fails
-    }
-    // Update product stock
-    product.stock -= quantity;
-    product.updatedBy = {
-      name: markedBy.name,
-      role: markedBy.role,
-    };
 
-    try {
-      // Notify the assigned driver about new assignment
-      const driverNotified = sendEventToUser(deliveryPersonnel.email, {
-        type: "NEW_ASSIGNMENT",
-        data: {
-          assignmentId: toShipItem._id.toString(),
-          productName: product.name,
-          productImage: product.image,
-          quantity: quantity,
-          destination: destination,
-          destinationCoordinates: coordinates,
-          note: note,
-          assignedBy: markedBy.name,
-        },
-      });
-
-      console.log(
-        `Driver notification sent to ${deliveryPersonnel.email}:`,
-        driverNotified
-      );
-    } catch (sseError) {
-      console.error("Error sending SSE to driver:", sseError);
-    }
+      try {
+        sendEventToUser(deliveryPersonnel.email, {
+          type: "NEW_ASSIGNMENT",
+          data: {
+            assignmentId: toShipItem._id.toString(),
+            productName: product.name,
+            productImage: product.image,
+            quantity: quantity,
+            destination: destination,
+            destinationCoordinates: finalCoordinates,
+            note: note,
+            assignedBy: markedBy.name,
+          },
+        });
+      } catch (sseError) {
+        console.error("Error sending SSE to driver:", sseError);
+      }
+    });
 
     return NextResponse.json({
       message: "Product marked for shipment successfully",
+      shipmentId: toShipItem._id.toString(),
       toShipItem: {
         id: toShipItem._id,
         productName: toShipItem.productName,
@@ -177,13 +190,16 @@ export async function POST(
         createdAt: toShipItem.createdAt,
       },
       updatedStock: product.stock,
-      geocodingSuccess: !!coordinates,
+      geocodingSuccess: !!finalCoordinates,
     });
   } catch (error) {
+    await session.abortTransaction();
     console.error("Error marking product for shipment:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    session.endSession();
   }
 }

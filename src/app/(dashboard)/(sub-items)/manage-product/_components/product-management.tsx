@@ -130,6 +130,7 @@ export default function ProductManagement() {
     destination: "",
     note: "",
     driverId: "",
+    estimatedDelivery: "",
   });
 
   const [sellData, setSellData] = useState({
@@ -468,6 +469,13 @@ export default function ProductManagement() {
   const confirmSell = async () => {
     if (!selectedProduct) return;
 
+    // Validate before sending
+    const quantity = parseInt(sellData.quantity);
+    if (!quantity || quantity <= 0 || quantity > selectedProduct.stock) {
+      toast.error("Invalid quantity");
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(
@@ -476,7 +484,7 @@ export default function ProductManagement() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            quantityToDeduct: parseInt(sellData.quantity),
+            quantityToDeduct: quantity,
             notes:
               sellData.note ||
               `Sold via Product Management - ${selectedProduct.name}`,
@@ -486,9 +494,10 @@ export default function ProductManagement() {
 
       if (handleAuthError(response)) return;
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to process sale");
+        throw new Error(data.error || "Failed to process sale");
       }
 
       toast.success("Sale Processed", {
@@ -505,7 +514,6 @@ export default function ProductManagement() {
       setLoading(false);
     }
   };
-
   const handleShip = (product: Product) => {
     setSelectedProduct(product);
     setShipmentData({
@@ -513,6 +521,7 @@ export default function ProductManagement() {
       destination: "",
       note: "",
       driverId: "",
+      estimatedDelivery: "",
     });
     setShowShipModal(true);
   };
@@ -520,13 +529,21 @@ export default function ProductManagement() {
   const confirmShipment = async () => {
     if (!selectedProduct) return;
 
+    // Prevent multiple submissions
+    if (loading) {
+      toast.error("Processing shipment, please wait...");
+      return;
+    }
+
     try {
       setLoading(true);
+
       const driver = deliveryPersonnel.find(
         (d) => d.id === shipmentData.driverId
       );
       if (!driver) {
         toast.error("Please select a delivery person");
+        setLoading(false);
         return;
       }
 
@@ -549,9 +566,9 @@ export default function ProductManagement() {
               fcmToken: driver.fcmToken,
             },
             destination: shipmentData.destination,
-            coordinates: selectedAddress?.coordinates || null, // Add coordinates here
+            coordinates: selectedAddress?.coordinates || null,
             note: shipmentData.note,
-            estimatedDelivery: shipmentData.estimatedDelivery,
+            estimatedDelivery: shipmentData.estimatedDelivery || null,
             markedBy: {
               name: userSession?.user?.name || "Admin",
               email: userSession?.user?.email || "admin@example.com",
@@ -561,7 +578,10 @@ export default function ProductManagement() {
         }
       );
 
-      if (handleAuthError(response)) return;
+      if (handleAuthError(response)) {
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -570,74 +590,67 @@ export default function ProductManagement() {
 
       const result = await response.json();
 
-      // Send notification
-      try {
-        await fetch("/api/notifications/newShipment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            driverEmail: driver.email,
-            shipmentData: {
-              id: result.shipmentId || result.id || result._id,
-              product: {
-                id: selectedProduct._id,
-                name: selectedProduct.name,
-                sku: selectedProduct.sku,
-                image: selectedProduct.image || "",
-                quantity: parseInt(shipmentData.quantity),
-              },
-              customerAddress: {
-                destination: shipmentData.destination,
-                coordinates: selectedAddress?.coordinates || null, // Pass coordinates here too
-              },
-              deliveryPersonnel: {
-                id: driver.id,
-                fullName: driver.name,
-                email: driver.email,
-                fcmToken: driver.fcmToken || "",
-              },
-              status: "pending",
-              note: shipmentData.note || "",
-              assignedDate: new Date().toISOString(),
-              estimatedDelivery: shipmentData.estimatedDelivery || null,
-              markedBy: {
-                name: userSession?.user?.name || "Admin",
-                email: userSession?.user?.email || "admin@example.com",
-                role: userSession?.user?.role || "admin",
-              },
-            },
-          }),
-        });
-        NotificationHelper.triggerNotification({
-          sound: true,
-          respectAudioSettings: true,
-          type: "assignment",
-          vibration: true,
-        });
-      } catch (notificationError) {
-        console.error("Failed to send notification:", notificationError);
-        toast.warning("Shipment created but notification failed");
-      }
+      // Close modal and reset BEFORE notifications to prevent double-click
+      setShowShipModal(false);
+      setShipmentData({
+        quantity: "",
+        destination: "",
+        note: "",
+        driverId: "",
+        estimatedDelivery: "",
+      });
 
-      // Record as sold
-      await fetch(`/api/products/${selectedProduct._id}/sold`, {
+      // Send notification (non-blocking)
+      fetch("/api/notifications/newShipment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          quantityToDeduct: parseInt(shipmentData.quantity),
-          notes: `Shipped to ${shipmentData.destination}. Driver: ${
-            driver.name
-          }. ${shipmentData.note || ""}`.trim(),
-          saleType: "shipment",
-          automaticSale: true,
+          driverEmail: driver.email,
+          shipmentData: {
+            id: result.shipmentId,
+            product: {
+              id: selectedProduct._id,
+              name: selectedProduct.name,
+              sku: selectedProduct.sku,
+              image: selectedProduct.image || "",
+              quantity: parseInt(shipmentData.quantity),
+            },
+            customerAddress: {
+              destination: shipmentData.destination,
+              coordinates: selectedAddress?.coordinates || null,
+            },
+            deliveryPersonnel: {
+              id: driver.id,
+              fullName: driver.name,
+              email: driver.email,
+              fcmToken: driver.fcmToken || "",
+            },
+            status: "pending",
+            note: shipmentData.note || "",
+            assignedDate: new Date().toISOString(),
+            estimatedDelivery: shipmentData.estimatedDelivery || null,
+            markedBy: {
+              name: userSession?.user?.name || "Admin",
+              email: userSession?.user?.email || "admin@example.com",
+              role: userSession?.user?.role || "admin",
+            },
+          },
         }),
+      }).catch((err) => console.error("Notification error:", err));
+
+      NotificationHelper.triggerNotification({
+        sound: true,
+        respectAudioSettings: true,
+        type: "assignment",
+        vibration: true,
       });
 
       toast.success("Shipment Confirmed", {
-        description: `${shipmentData.quantity} units of ${selectedProduct.name} assigned to ${driver.name} for delivery.`,
+        description: `${parseInt(shipmentData.quantity)} units of ${
+          selectedProduct.name
+        } assigned to ${driver.name} for delivery.`,
       });
 
-      setShowShipModal(false);
       await fetchProducts();
     } catch (error) {
       console.error("Error confirming shipment:", error);
@@ -1558,7 +1571,7 @@ export default function ProductManagement() {
               <Input
                 id="estimatedDelivery"
                 type="datetime-local"
-                value={shipmentData.estimatedDelivery || ""}
+                value={shipmentData.estimatedDelivery}
                 onChange={(e) =>
                   setShipmentData({
                     ...shipmentData,
@@ -1575,6 +1588,7 @@ export default function ProductManagement() {
             <Button
               onClick={confirmShipment}
               disabled={
+                loading ||
                 !shipmentData.quantity ||
                 !shipmentData.destination ||
                 !shipmentData.driverId ||
@@ -1583,7 +1597,7 @@ export default function ProductManagement() {
                   (selectedProduct?.stock || 0)
               }
             >
-              Confirm Shipment
+              {loading ? "Processing..." : "Confirm Shipment"}
             </Button>
           </DialogFooter>
         </DialogContent>

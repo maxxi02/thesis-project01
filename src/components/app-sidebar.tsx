@@ -37,20 +37,33 @@ const rolePageAccess = {
   admin: [
     "/dashboard",
     "/deliveries",
+    "/deliveries/overview",
+    "/deliveries/assignments",
     "/manage-product",
     "/history",
     "/manage-users",
     "/settings",
   ],
-  cashier: ["/dashboard", "/deliveries", "/manage-product", "/settings"],
-  delivery: ["/deliveries", "/settings"],
+  cashier: [
+    "/dashboard",
+    "/deliveries",
+    "/deliveries/overview",
+    "/deliveries/assignments",
+    "/manage-product",
+    "/settings",
+  ],
+  delivery: [
+    "/deliveries",
+    "/deliveries/overview",
+    "/deliveries/assignments",
+    "/settings",
+  ],
   user: ["/settings"],
 };
-
 const roleDefaultPage = {
   admin: "/dashboard",
   cashier: "/dashboard",
-  delivery: "/deliveries",
+  delivery: "/deliveries/overview",
   user: "/settings",
 };
 
@@ -76,11 +89,21 @@ const data = {
       title: "Dashboard",
       url: "/dashboard",
       icon: <BiSolidDashboard />,
+      roles: ["admin", "cashier"],
+    },
+  ],
+  deliveries: [
+    {
+      title: "Delivery Overview",
+      url: "/deliveries/overview",
+      icon: <FaTruck />,
+      roles: ["admin", "delivery"],
     },
     {
-      title: "Deliveries",
-      url: "/deliveries",
-      icon: <FaTruck />,
+      title: "Assignments",
+      url: "/deliveries/assignments",
+      icon: <FaClipboardList />,
+      roles: ["admin", "delivery"],
     },
   ],
   admin: [
@@ -112,29 +135,40 @@ const data = {
 };
 
 const filterItemsByRole = (role: string | undefined) => {
-  if (!role) return { dashboard: [], products: [], admin: [], settings: [] };
+  if (!role)
+    return {
+      dashboard: [],
+      deliveries: [],
+      products: [],
+      admin: [],
+      settings: [],
+    };
 
   const rolePermissions = {
     admin: {
       dashboard: data.dashboard,
+      deliveries: data.deliveries,
       products: data.products,
       admin: data.admin,
       settings: data.settings,
     },
     cashier: {
       dashboard: data.dashboard,
+      deliveries: [], // Cashier should NOT see delivery pages
       products: data.products,
       admin: [],
       settings: data.settings,
     },
     delivery: {
-      dashboard: data.dashboard.filter((item) => item.title === "Deliveries"),
+      dashboard: [],
+      deliveries: data.deliveries, // Only delivery sees these
       products: [],
       admin: [],
       settings: data.settings,
     },
     user: {
       dashboard: [],
+      deliveries: [],
       products: [],
       admin: [],
       settings: data.settings,
@@ -195,6 +229,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         {filteredData.dashboard.length > 0 && (
           <NavDashboard items={filteredData.dashboard} />
+        )}
+        {filteredData.deliveries.length > 0 && (
+          <NavDashboard items={filteredData.deliveries} />
         )}
         {filteredData.products.length > 0 && (
           <NavProducts items={filteredData.products} />
