@@ -829,15 +829,16 @@ export default function DeliveryAssignments() {
       </div>
 
       {hasActiveDelivery && activeDelivery && (
-        <Alert className="border-blue-200 bg-blue-50">
-          <Truck className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800">
+        <Alert className="flex items-center md:justify-start justify-center">
+          <Truck />
+          <AlertDescription>
             <div className="flex items-center justify-between">
               <div>
                 <strong>Active Delivery:</strong> {activeDelivery.product.name}{" "}
                 to {activeDelivery.customerAddress.destination}
               </div>
               <Button
+                className="m-2"
                 size="sm"
                 variant="outline"
                 onClick={() => {

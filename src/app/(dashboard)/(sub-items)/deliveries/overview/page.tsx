@@ -428,9 +428,6 @@ const getDeliveryStats = () => {
             <div className="text-2xl font-bold text-green-600">
               {stats.delivered}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Including archived deliveries
-            </p>
           </CardContent>
         </Card>
       </div>

@@ -45,18 +45,32 @@ export async function PATCH(
     }
     await delivery.save();
 
-    // Immediately archive if status is "delivered"
     if (status === "delivered") {
       try {
-        // Create archived copy
+        // Validate required fields before archiving
+        const productId = delivery.productId || delivery._id;
+        const deliveryPersonnelId =
+          delivery.deliveryPersonnel.id ||
+          delivery.deliveryPersonnel._id?.toString() ||
+          delivery.deliveryPersonnel.email; // Fallback to email as unique ID
+
+        if (!deliveryPersonnelId) {
+          throw new Error("Missing delivery personnel ID");
+        }
+
         await ArchivedDelivery.create({
           originalId: delivery._id,
+          productId: productId, // Use validated productId
           productName: delivery.productName,
           productImage: delivery.productImage,
           quantity: delivery.quantity,
           destination: delivery.destination,
           destinationCoordinates: delivery.destinationCoordinates,
-          deliveryPersonnel: delivery.deliveryPersonnel,
+          deliveryPersonnel: {
+            id: deliveryPersonnelId, // Use validated ID
+            fullName: delivery.deliveryPersonnel.fullName,
+            email: delivery.deliveryPersonnel.email,
+          },
           status: delivery.status,
           note: delivery.note,
           createdAt: delivery.createdAt,
@@ -66,17 +80,15 @@ export async function PATCH(
           markedBy: delivery.markedBy,
           archivedAt: new Date(),
         });
-        // Delete original from ToShip
+
         await ToShip.findByIdAndDelete(delivery._id);
       } catch (archiveError) {
         console.error(
           `Failed to archive delivery ${delivery._id}:`,
           archiveError
         );
-        // Don't fail the whole request; log and continue
       }
     }
-
     // Send SSE notifications
     try {
       sendEventToUser(delivery.markedBy.email, {
