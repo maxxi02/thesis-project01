@@ -4,12 +4,10 @@ import { useState } from "react";
 import { MessageCircle, X, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
-
 interface AIChatWidgetProps {
   analytics: unknown;
 }
@@ -22,7 +20,6 @@ export function AIChatWidget({ analytics }: AIChatWidgetProps) {
   const generateInsights = async (): Promise<void> => {
     if (!analytics) return;
 
-    // Don't show user message anymore
     setLoading(true);
 
     try {
