@@ -34,7 +34,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AIChatWidget } from "./ai-chat-widget";
 
 // Chart configurations
 const categoryChartConfig = {
@@ -112,10 +119,36 @@ export const ProductsTab = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState("30");
+  // GOOGLE AI VARIABLES
+  const [aiInsights, setAiInsights] = useState<string | null>(null);
+  const [loadingInsights, setLoadingInsights] = useState<boolean>(false);
 
   useEffect(() => {
     fetchAnalytics();
   }, [period]);
+
+  const generateInsights = async (): Promise<void> => {
+    if (!analytics) return;
+
+    try {
+      setLoadingInsights(true);
+      const response = await fetch("/api/ai-analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analytics }),
+      });
+
+      if (!response.ok) throw new Error("Failed to generate insights");
+
+      const data: { insights: string } = await response.json();
+      setAiInsights(data.insights);
+    } catch (err) {
+      console.error("Error generating insights:", err);
+      setAiInsights("Failed to generate insights. Please try again.");
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
@@ -190,7 +223,10 @@ export const ProductsTab = () => {
     <div className="space-y-6">
       {/* Period Selector */}
       <div className="flex items-center gap-4">
-        <label htmlFor="period-select" className="text-sm font-medium text-foreground">
+        <label
+          htmlFor="period-select"
+          className="text-sm font-medium text-foreground"
+        >
           Analytics Period:
         </label>
         <Select value={period} onValueChange={setPeriod}>
@@ -226,7 +262,9 @@ export const ProductsTab = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Stock Alerts</CardTitle>
+            <CardTitle className="text-sm font-medium text-foreground">
+              Stock Alerts
+            </CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -290,7 +328,9 @@ export const ProductsTab = () => {
         {/* Top Selling Products */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-foreground">Top Selling Products</CardTitle>
+            <CardTitle className="text-foreground">
+              Top Selling Products
+            </CardTitle>
             <CardDescription>
               Best performers in last {period} days
             </CardDescription>
@@ -420,8 +460,12 @@ export const ProductsTab = () => {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-foreground">{activity.quantitySold}</TableCell>
-                      <TableCell className="text-foreground">₱{activity.totalAmount.toFixed(2)}</TableCell>
+                      <TableCell className="text-foreground">
+                        {activity.quantitySold}
+                      </TableCell>
+                      <TableCell className="text-foreground">
+                        ₱{activity.totalAmount.toFixed(2)}
+                      </TableCell>
                       <TableCell className="text-foreground">
                         {new Date(activity.saleDate).toLocaleDateString()}
                       </TableCell>
@@ -465,8 +509,12 @@ export const ProductsTab = () => {
                       <TableCell className="font-medium text-foreground">
                         {product.name}
                       </TableCell>
-                      <TableCell className="text-foreground">{product.sku}</TableCell>
-                      <TableCell className="text-foreground">{product.stock}</TableCell>
+                      <TableCell className="text-foreground">
+                        {product.sku}
+                      </TableCell>
+                      <TableCell className="text-foreground">
+                        {product.stock}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={
@@ -501,6 +549,24 @@ export const ProductsTab = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* {aiInsights && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              🤖 AI Insights
+            </CardTitle>
+            <CardDescription>Smart analysis of your inventory</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="prose prose-sm max-w-none text-foreground whitespace-pre-line">
+              {aiInsights}
+            </div>
+          </CardContent>
+        </Card>
+      )} */}
+
+      {analytics && <AIChatWidget analytics={analytics} />}
     </div>
   );
 };

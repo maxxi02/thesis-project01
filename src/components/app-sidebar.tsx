@@ -10,10 +10,10 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Box } from "lucide-react";
-import { NavProducts } from "@/app/(dashboard)/_components/nav-products";
-import { NavDashboard } from "@/app/(dashboard)/_components/nav-dashboard";
-import { NavAdmin } from "@/app/(dashboard)/_components/nav-admin";
-import { NavSettings } from "@/app/(dashboard)/_components/nav-settings";
+import { NavProducts } from "../../_components/nav-products";
+import { NavDashboard } from "../../_components/nav-dashboard";
+import { NavAdmin } from "../../_components/nav-admin";
+import { NavSettings } from "../../_components/nav-settings";
 import { BiSolidDashboard } from "react-icons/bi";
 import { FaTruck, FaClipboardList } from "react-icons/fa6";
 import { FaHistory, FaUsers } from "react-icons/fa";
