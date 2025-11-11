@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   CheckCircle,
   Package,
@@ -12,6 +12,8 @@ import {
   Truck,
   Clock,
   Calendar as CalendarIcon,
+  MessageCircleMoreIcon,
+  AlertCircleIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -28,6 +30,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface DeliveryAssignment {
   id: string;
@@ -50,6 +59,7 @@ interface DeliveryAssignment {
   status: "pending" | "in-transit" | "delivered" | "cancelled";
   note?: string;
   assignedDate: string;
+  estimatedDelivery?: string; // Add this line
   startedAt?: string;
   deliveredAt?: string;
   markedBy: {
@@ -65,6 +75,9 @@ export default function DeliveryOverview() {
   const sseConnectionRef = useRef<EventSource | null>(null);
   const [archivedCount, setArchivedCount] = useState(0);
   const [date, setDate] = useState<Date | undefined>(new Date());
+  const [selectedDelivery, setSelectedDelivery] =
+    useState<DeliveryAssignment | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const router = useRouter();
 
   const fetchArchivedCount = async (userEmail: string) => {
@@ -83,19 +96,55 @@ export default function DeliveryOverview() {
     }
   };
 
+  const getLocalDateKey = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   // Extract unique assigned dates for calendar marking
   const getAssignedDates = (): Date[] => {
-    const dates = assignments.map((a) => new Date(a.assignedDate));
-    // Filter unique dates (by day)
-    const uniqueDates = new Map();
-    dates.forEach((d) => {
-      const dateKey = d.toISOString().split("T")[0];
-      uniqueDates.set(dateKey, d);
+    const dateMap = new Map<string, Date>();
+    assignments.forEach((a) => {
+      const d = new Date(a.assignedDate);
+      const key = getLocalDateKey(d);
+      if (!dateMap.has(key)) {
+        dateMap.set(key, new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+      }
     });
-    return Array.from(uniqueDates.values());
+    return Array.from(dateMap.values());
+  };
+
+  // Extract unique estimated delivery dates for calendar marking
+  const getEstimatedDeliveryDates = (): Date[] => {
+    const dateMap = new Map<string, Date>();
+    assignments
+      .filter((a) => a.estimatedDelivery)
+      .forEach((a) => {
+        const d = new Date(a.estimatedDelivery!);
+        const key = getLocalDateKey(d);
+        if (!dateMap.has(key)) {
+          dateMap.set(
+            key,
+            new Date(d.getFullYear(), d.getMonth(), d.getDate())
+          );
+        }
+      });
+    return Array.from(dateMap.values());
   };
 
   const assignedDates = getAssignedDates();
+  const estimatedDates = getEstimatedDeliveryDates();
+
+  const getUniqueDateCount = (): number => {
+    const allKeys = new Set<string>();
+    assignedDates.forEach((d) => allKeys.add(getLocalDateKey(d)));
+    estimatedDates.forEach((d) => allKeys.add(getLocalDateKey(d)));
+    return allKeys.size;
+  };
+
+  const uniqueDateCount = getUniqueDateCount();
 
   const setupSSEConnection = (userId: string, userEmail: string) => {
     if (sseConnectionRef.current) {
@@ -193,7 +242,9 @@ export default function DeliveryOverview() {
     try {
       setLoading(true);
       const response = await fetch(
-        `/api/deliveries/assigned?driverEmail=${encodeURIComponent(userEmail)}`
+        `/api/deliveries/assigned?driverEmail=${encodeURIComponent(
+          userEmail
+        )}&includeDetails=true`
       );
       if (!response.ok) {
         if (response.status === 404) {
@@ -223,17 +274,30 @@ export default function DeliveryOverview() {
     }
   };
 
-const getDeliveryStats = () => {
-  return {
-    total: assignments.length,
-    pending: assignments.filter((a) => a.status === "pending").length,
-    inTransit: assignments.filter((a) => a.status === "in-transit").length,
-    delivered:
-      assignments.filter((a) => a.status === "delivered").length +
-      archivedCount,
-    cancelled: assignments.filter((a) => a.status === "cancelled").length,
+  const getEstimatedDeliveriesForDate = (
+    selectedDate: Date | undefined
+  ): DeliveryAssignment[] => {
+    if (!selectedDate) return [];
+    const dateKey = getLocalDateKey(selectedDate);
+    return assignments.filter((assignment) => {
+      if (!assignment.estimatedDelivery) return false;
+      const estDate = new Date(assignment.estimatedDelivery);
+      const estDateKey = getLocalDateKey(estDate);
+      return estDateKey === dateKey;
+    });
   };
-};
+
+  const getDeliveryStats = () => {
+    return {
+      total: assignments.length,
+      pending: assignments.filter((a) => a.status === "pending").length,
+      inTransit: assignments.filter((a) => a.status === "in-transit").length,
+      delivered:
+        assignments.filter((a) => a.status === "delivered").length +
+        archivedCount,
+      cancelled: assignments.filter((a) => a.status === "cancelled").length,
+    };
+  };
 
   const stats = getDeliveryStats();
   const hasActiveDelivery = assignments.some((a) => a.status === "in-transit");
@@ -322,61 +386,130 @@ const getDeliveryStats = () => {
                 Delivery Calendar
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[400px] sm:w-[450px]">
+            <SheetContent
+              side="right"
+              className="w-[400px] sm:w-[450px] overflow-y-auto"
+            >
               <SheetHeader>
-                <SheetTitle>Delivery Calendar</SheetTitle>
-                <SheetDescription>
-                  View all dates with assigned deliveries marked in blue.
+                <SheetTitle>Your Deliveries</SheetTitle>
+                <SheetDescription className="text-sm">
+                  Monitor your delivery schedule with blue markers indicating
+                  assignment dates and green for estimated delivery times.
                 </SheetDescription>
               </SheetHeader>
-              <div className="m-2">
+              <div className="mt-2 space-y-4 mx-4">
+                {/* Color Legend */}
+                <div className="flex justify-center gap-6 mb-4">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <div className="w-3 h-3 bg-blue-100 border-2 border-blue-500 rounded"></div>
+                    <span>Current Date</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <div className="w-3 h-3 bg-green-100 border-2 border-green-500 rounded"></div>
+                    <span>Est. Delivery Date</span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  {uniqueDateCount} unique delivery date
+                  {uniqueDateCount !== 1 ? "s" : ""} marked
+                </p>
                 <Calendar
                   mode="single"
                   selected={date}
                   onSelect={setDate}
                   className="rounded-md border w-full"
-                  required={false}
                   modifiers={{
                     assigned: assignedDates,
+                    estimated: estimatedDates,
                   }}
                   modifiersClassNames={{
                     assigned: "bg-blue-100 text-blue-800 hover:bg-blue-200",
+                    estimated: "bg-green-100 text-green-800 hover:bg-green-200",
                   }}
                   modifiersStyles={{
                     assigned: {
                       border: "2px solid blue",
                       fontWeight: "bold",
                     },
+                    estimated: {
+                      border: "2px solid green",
+                      fontWeight: "bold",
+                    },
                   }}
                 />
-                <p className="text-sm text-muted-foreground mt-4 text-center">
-                  {assignedDates.length} delivery dates marked
-                </p>
+                {date && getEstimatedDeliveriesForDate(date).length > 0 && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-3">
+                      Deliveries estimated for{" "}
+                      {date.toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </h3>
+                    <div className="space-y-4">
+                      {getEstimatedDeliveriesForDate(date).map((assignment) => (
+                        <Alert variant="default" key={assignment.id}>
+                          <AlertCircleIcon className="text-sm" />
+                          <AlertTitle>Note from the cashier:</AlertTitle>
+                          <AlertDescription>
+                            <p className="text-sm">{assignment.note}</p>
+                          </AlertDescription>
+                        </Alert>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {date && getEstimatedDeliveriesForDate(date).length === 0 && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <p className="text-sm">
+                      No deliveries estimated for this date
+                    </p>
+                  </div>
+                )}
               </div>
             </SheetContent>
           </Sheet>
         </div>
       </div>
+
       {hasActiveDelivery && activeDelivery && (
         <Alert className="">
           <Truck className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <strong>Active Delivery:</strong> {activeDelivery.product.name}{" "}
-                to {activeDelivery.customerAddress.destination}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <strong>Active Delivery:</strong>{" "}
+                  {activeDelivery.product.name} to{" "}
+                  {activeDelivery.customerAddress.destination}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedDelivery(activeDelivery);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  View Details
+                </Button>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => router.push("/deliveries/assignments")}
-              >
-                View Details
-              </Button>
+              {activeDelivery.note && (
+                <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
+                  <p className="font-medium text-blue-900">
+                    Message from {activeDelivery.markedBy.name}:
+                  </p>
+                  <p className="text-blue-800 mt-1">{activeDelivery.note}</p>
+                </div>
+              )}
             </div>
           </AlertDescription>
         </Alert>
       )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -431,6 +564,7 @@ const getDeliveryStats = () => {
           </CardContent>
         </Card>
       </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Recent Assignments</CardTitle>
@@ -480,7 +614,10 @@ const getDeliveryStats = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push("/deliveries/assignments")}
+                      onClick={() => {
+                        setSelectedDelivery(assignment);
+                        setIsModalOpen(true);
+                      }}
                     >
                       View Details
                     </Button>
@@ -491,6 +628,148 @@ const getDeliveryStats = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delivery Details Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Delivery Details</DialogTitle>
+            <DialogDescription>
+              Complete information about this delivery assignment
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDelivery && (
+            <div className="space-y-4">
+              {/* Product Info */}
+              <div className="flex items-start gap-4 p-4 border rounded-lg">
+                <Image
+                  width={100}
+                  height={100}
+                  src={selectedDelivery.product.image || "/placeholder.svg"}
+                  alt={selectedDelivery.product.name}
+                  className="h-20 w-20 rounded object-cover"
+                />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">
+                    {selectedDelivery.product.name}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Quantity: {selectedDelivery.product.quantity}
+                  </p>
+                  <Badge
+                    variant={getStatusColor(selectedDelivery.status)}
+                    className="mt-2"
+                  >
+                    {selectedDelivery.status.replace("-", " ")}
+                  </Badge>
+                </div>
+              </div>
+              {/* Delivery Address */}
+              <div className="p-4 border rounded-lg">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Delivery Address
+                </h4>
+                <p className="text-sm">
+                  {selectedDelivery.customerAddress.destination}
+                </p>
+                {selectedDelivery.customerAddress.coordinates && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Coordinates:{" "}
+                    {selectedDelivery.customerAddress.coordinates.lat},{" "}
+                    {selectedDelivery.customerAddress.coordinates.lng}
+                  </p>
+                )}
+              </div>
+              {/* Driver Info */}
+              <div className="p-4 border rounded-lg">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Driver Information
+                </h4>
+                <p className="text-sm font-medium">
+                  {selectedDelivery.driver.fullName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedDelivery.driver.email}
+                </p>
+              </div>
+              {/* Timeline */}
+              <div className="p-4 border rounded-lg">
+                <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Timeline
+                </h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Assigned:</span>
+                    <span className="font-medium">
+                      {new Date(selectedDelivery.assignedDate).toLocaleString()}
+                    </span>
+                  </div>
+                  {selectedDelivery.estimatedDelivery && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Estimated Delivery:
+                      </span>
+                      <span className="font-medium text-blue-600">
+                        {new Date(
+                          selectedDelivery.estimatedDelivery
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {selectedDelivery.startedAt && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Started:</span>
+                      <span className="font-medium">
+                        {new Date(selectedDelivery.startedAt).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {selectedDelivery.deliveredAt && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Delivered:</span>
+                      <span className="font-medium">
+                        {new Date(
+                          selectedDelivery.deliveredAt
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Message/Note */}
+              {selectedDelivery.note && (
+                <div className="p-4 border rounded-lg bg-muted/50">
+                  <h4 className="font-semibold mb-2">
+                    Message from {selectedDelivery.markedBy.name}
+                  </h4>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {selectedDelivery.note}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {selectedDelivery.markedBy.email}
+                  </p>
+                </div>
+              )}
+              {/* Action Buttons */}
+              <div className="flex gap-2 justify-end pt-4 border-t">
+                <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                  Close
+                </Button>
+                {selectedDelivery.status === "pending" && (
+                  <Button
+                    onClick={() => router.push("/deliveries/assignments")}
+                  >
+                    Go to Assignments
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
