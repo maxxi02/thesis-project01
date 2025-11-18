@@ -12,6 +12,7 @@ type Session = {
 };
 
 const publicPaths = [
+  "/",
   "/sign-in",
   "/sign-up",
   "/reset-password",
