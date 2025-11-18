@@ -173,7 +173,7 @@ export function AIChatWidget({ analytics }: AIChatWidgetProps) {
         <Card className="fixed bottom-6 right-6 w-[450px] h-[600px] shadow-2xl z-50 flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 border-b">
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              🤖 Nivek's Analysis
+              🤖 Nivek&#39;s Analysis
             </CardTitle>
             <div className="flex items-center gap-2">
               <Select value={format} onValueChange={(v: any) => setFormat(v)}>
