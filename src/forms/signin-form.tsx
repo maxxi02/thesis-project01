@@ -265,11 +265,7 @@ export function SigninForm({
               </FormItem>
             )}
           />
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? (
               <Loader2 className="animate-spin mx-auto" />
             ) : (

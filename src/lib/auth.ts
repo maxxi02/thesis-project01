@@ -9,13 +9,12 @@ import { admin, cashier, delivery, user, ac } from "@/better-auth/permissions";
 const resend = getResend();
 
 export const auth = betterAuth({
+  database: mongodbAdapter(db),
   advanced: {
     ipAddress: {
-      // Vercel automatically sets x-forwarded-for header in production
       ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
     },
   },
-  database: mongodbAdapter(db),
   trustedOrigins: [
     process.env.NODE_ENV === "production"
       ? process.env.NEXT_PUBLIC_URL!
@@ -36,13 +35,16 @@ export const auth = betterAuth({
         window: 60, // 60 seconds
         max: 5, // 5 login attempts per minute per IP
       },
-      "/two-factor/verify": {
-        window: 60, // 60 seconds
-        max: 5, // 5 2FA attempts per minute per IP
+      "/two-factor/*": async () => {
+        // custom function to return rate limit window and max
+        return {
+          window: 10,
+          max: 5,
+        };
       },
       "/two-factor/send-otp": {
         window: 60,
-        max: 3, // Limit OTP sending to prevent spam
+        max: 5, // Limit OTP sending to prevent spam
       },
     },
   },
