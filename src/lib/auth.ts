@@ -24,7 +24,8 @@ export const auth = betterAuth({
   appName: "LGW Warehouse",
   rateLimit: {
     // Only enable rate limiting in production where IP headers are available
-    enabled: process.env.NODE_ENV === "production",
+    // enabled: process.env.NODE_ENV === "production",
+    enabled: true,
     // Store rate limit data in MongoDB instead of memory
     storage: "database",
     modelName: "rateLimit", // Collection name in MongoDB
