@@ -8,7 +8,7 @@ import {
   DollarSign,
   ShoppingCart,
 } from "lucide-react";
-import { Cell, Pie, PieChart } from "recharts";
+import { Cell, LabelList, Pie, PieChart } from "recharts";
 import {
   Card,
   CardContent,
@@ -123,6 +123,50 @@ export const ProductsTab = () => {
   const [aiInsights, setAiInsights] = useState<string | null>(null);
   const [loadingInsights, setLoadingInsights] = useState<boolean>(false);
 
+  // Prepare chart data - REPLACE THE EXISTING SECTION
+  const topProductsChartConfig = analytics ? {
+    quantity: {
+      label: "Quantity Sold",
+    },
+    ...analytics.topProducts.slice(0, 5).reduce((acc, product, index) => {
+      acc[product._id] = {
+        label: product.productName,
+        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+      };
+      return acc;
+    }, {} as Record<string, { label: string; color: string }>)
+  } satisfies ChartConfig : { quantity: { label: "Quantity Sold" } } satisfies ChartConfig;
+
+  const categoryChartConfigDynamic = analytics ? {
+    sales: {
+      label: "Sales",
+    },
+    ...analytics.salesByCategory.reduce((acc, cat, index) => {
+      acc[cat.name.toLowerCase().replace(/\s+/g, '-')] = {
+        label: cat.name,
+        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+      };
+      return acc;
+    }, {} as Record<string, { label: string; color: string }>)
+  } satisfies ChartConfig : { sales: { label: "Sales" } } satisfies ChartConfig;
+
+  const topProductsData = analytics ? analytics.topProducts
+    .slice(0, 5)
+    .map((product, index) => ({
+      id: product._id,
+      name: product.productName,
+      quantity: product.totalQuantity,
+      fill: `hsl(${(index * 360) / 5}, 70%, 60%)`, // Change this line
+    })) : [];
+
+  const categoryData = analytics ? analytics.salesByCategory.map((cat, index) => ({
+    id: cat.name.toLowerCase().replace(/\s+/g, '-'),
+    name: cat.name,
+    sales: cat.sales,
+    quantity: cat.quantity,
+    fill: `hsl(${(index * 360) / analytics.salesByCategory.length}, 70%, 60%)`, // Change this line
+  })) : [];
+
   useEffect(() => {
     fetchAnalytics();
   }, [period]);
@@ -204,20 +248,6 @@ export const ProductsTab = () => {
       </div>
     );
   }
-
-  // Prepare chart data
-  const categoryData = analytics.salesByCategory.map((cat, index) => ({
-    ...cat,
-    fill: `hsl(${(index * 360) / analytics.salesByCategory.length}, 70%, 60%)`,
-  }));
-
-  const topProductsData = analytics.topProducts
-    .slice(0, 5)
-    .map((product, index) => ({
-      name: product.productName,
-      quantity: product.totalQuantity,
-      fill: `hsl(${(index * 360) / 5}, 70%, 60%)`,
-    }));
 
   return (
     <div className="space-y-6">
@@ -339,28 +369,21 @@ export const ProductsTab = () => {
             {topProductsData.length > 0 ? (
               <ChartContainer
                 config={topProductsChartConfig}
-                className="mx-auto aspect-square max-h-[300px]"
+                className="[&_.recharts-text]:fill-background mx-auto aspect-square max-h-[250px]"
               >
                 <PieChart>
                   <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent hideLabel />}
+                    content={<ChartTooltipContent nameKey="name" hideLabel />}
                   />
-                  <Pie
-                    data={topProductsData}
-                    dataKey="quantity"
-                    nameKey="name"
-                    innerRadius={60}
-                    strokeWidth={5}
-                  >
-                    {topProductsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
+                  <Pie data={topProductsData} dataKey="quantity" nameKey="name">
+                    <LabelList
+                      dataKey="quantity"
+                      className="fill-background"
+                      stroke="none"
+                      fontSize={12}
+                      formatter={(value: number) => `${value}`}
+                    />
                   </Pie>
-                  <ChartLegend
-                    content={<ChartLegendContent nameKey="name" />}
-                    className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center"
-                  />
                 </PieChart>
               </ChartContainer>
             ) : (
@@ -395,28 +418,20 @@ export const ProductsTab = () => {
             {categoryData.length > 0 ? (
               <ChartContainer
                 config={categoryChartConfig}
-                className="mx-auto aspect-square max-h-[300px]"
+                className="[&_.recharts-text]:fill-background mx-auto aspect-square max-h-[250px]"
               >
                 <PieChart>
                   <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent hideLabel />}
+                    content={<ChartTooltipContent nameKey="name" hideLabel />}
                   />
-                  <Pie
-                    data={categoryData}
-                    dataKey="sales"
-                    nameKey="name"
-                    innerRadius={60}
-                    strokeWidth={5}
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
+                  <Pie data={categoryData} dataKey="sales" nameKey="name">
+                    <LabelList
+                      dataKey="name"
+                      className="fill-background"
+                      stroke="none"
+                      fontSize={12}
+                    />
                   </Pie>
-                  <ChartLegend
-                    content={<ChartLegendContent nameKey="name" />}
-                    className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center"
-                  />
                 </PieChart>
               </ChartContainer>
             ) : (
@@ -425,6 +440,17 @@ export const ProductsTab = () => {
               </div>
             )}
           </CardContent>
+          <CardFooter className="flex-col gap-2 text-sm">
+            <div className="flex items-center gap-2 font-medium leading-none text-foreground">
+              Total Revenue: ₱{analytics.sales.totalSales.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} <TrendingUp className="h-4 w-4" />
+            </div>
+            <div className="leading-none text-muted-foreground">
+              Across {analytics.salesByCategory.length} categories
+            </div>
+          </CardFooter>
         </Card>
       </div>
 
@@ -521,15 +547,15 @@ export const ProductsTab = () => {
                             product.stock === 0
                               ? "destructive"
                               : product.stock <= 10
-                              ? "secondary"
-                              : "default"
+                                ? "secondary"
+                                : "default"
                           }
                         >
                           {product.stock === 0
                             ? "Out of Stock"
                             : product.stock <= 10
-                            ? "Low Stock"
-                            : "In Stock"}
+                              ? "Low Stock"
+                              : "In Stock"}
                         </Badge>
                       </TableCell>
                     </TableRow>
