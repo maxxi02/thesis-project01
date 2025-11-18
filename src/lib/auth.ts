@@ -23,29 +23,50 @@ export const auth = betterAuth({
   ],
   appName: "LGW Warehouse",
   rateLimit: {
-    // Only enable rate limiting in production where IP headers are available
-    // enabled: process.env.NODE_ENV === "production",
     enabled: true,
-    // Store rate limit data in MongoDB instead of memory
     storage: "database",
-    modelName: "rateLimit", // Collection name in MongoDB
-    window: 60, // 60 seconds
-    max: 10, // 10 requests per window
+    modelName: "rateLimit",
+    window: 60,
+    max: 10,
     customRules: {
-      "/sign-in/email": {
-        window: 60, // 60 seconds
-        max: 5, // 5 login attempts per minute per IP
-      },
-      "/two-factor/*": async () => {
-        // custom function to return rate limit window and max
+      "/sign-in/email": async (request) => {
+        // Extract email from request body
+        const body = await request.json();
+        const email = body.email;
+
+        if (email) {
+          // Use email as the rate limit key instead of IP
+          return {
+            window: 60,
+            max: 5,
+            key: `email:${email}`, // Custom key based on email
+          };
+        }
+
+        // Fallback to default IP-based rate limiting
         return {
-          window: 10,
+          window: 60,
           max: 5,
         };
       },
-      "/two-factor/send-otp": {
-        window: 60,
-        max: 5, // Limit OTP sending to prevent spam
+      "/two-factor/send-otp": async (request) => {
+        // For 2FA, you can get the email from the session
+        // Since the user is already authenticated at this point
+        const session = request.headers.get("cookie");
+        // Parse session to get user email if needed
+        return {
+          window: 60,
+          max: 5,
+          key: session ? `otp:${session}` : undefined, // Use session-based key
+        };
+      },
+      "/two-factor/verify-totp": {
+        window: 10,
+        max: 5,
+      },
+      "/two-factor/verify-otp": {
+        window: 10,
+        max: 5,
       },
     },
   },
