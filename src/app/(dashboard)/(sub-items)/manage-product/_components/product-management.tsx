@@ -97,6 +97,12 @@ export interface BatangasCityAddress {
 }
 
 export default function ProductManagement() {
+
+  const MAX_PRICE = 500000;
+  const MAX_STOCK = 500;
+  const MIN_PRICE = 0;
+  const MIN_STOCK = 0;
+
   const sseConnectionRef = useRef<EventSource | null>(null);
   const [userSession, setUserSession] = useState<Session | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -408,6 +414,20 @@ export default function ProductManagement() {
   };
 
   const confirmAddProduct = async () => {
+
+    const price = parseFloat(newProductData.price);
+    const stock = parseInt(newProductData.stock);
+
+    if (price < MIN_PRICE || price > MAX_PRICE) {
+      toast.error(`Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`);
+      return;
+    }
+
+    if (stock < MIN_STOCK || stock > MAX_STOCK) {
+      toast.error(`Stock must be between ${MIN_STOCK} and ${MAX_STOCK} units`);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch("/api/products", {
@@ -646,9 +666,8 @@ export default function ProductManagement() {
       });
 
       toast.success("Shipment Confirmed", {
-        description: `${parseInt(shipmentData.quantity)} units of ${
-          selectedProduct.name
-        } assigned to ${driver.name} for delivery.`,
+        description: `${parseInt(shipmentData.quantity)} units of ${selectedProduct.name
+          } assigned to ${driver.name} for delivery.`,
       });
 
       await fetchProducts();
@@ -678,6 +697,21 @@ export default function ProductManagement() {
 
   const confirmEdit = async () => {
     if (!selectedProduct) return;
+
+    // Validate price and stock
+    const price = parseFloat(editProductData.price);
+    const stock = parseInt(editProductData.stock);
+
+    if (price < MIN_PRICE || price > MAX_PRICE) {
+      toast.error(`Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`);
+      return;
+    }
+
+    if (stock < MIN_STOCK || stock > MAX_STOCK) {
+      toast.error(`Stock must be between ${MIN_STOCK} and ${MAX_STOCK} units`);
+      return;
+    }
+
 
     try {
       setLoading(true);
@@ -1303,28 +1337,53 @@ export default function ProductManagement() {
                   id="new-price"
                   type="number"
                   step="0.01"
+                  min={MIN_PRICE}
+                  max={MAX_PRICE}
                   value={newProductData.price}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (value < 0) return;
+                    if (value > MAX_PRICE) {
+                      toast.error(`Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`);
+                      return;
+                    }
                     setNewProductData({
                       ...newProductData,
                       price: e.target.value,
-                    })
-                  }
+                    });
+                  }}
                   placeholder="0.00"
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="new-stock">Stock</Label>
+                <Label htmlFor="new-stock">Stock </Label>
                 <Input
                   id="new-stock"
                   type="number"
+                  min="0"
+                  max={MAX_STOCK}
                   value={newProductData.stock}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (isNaN(value) || value < 0) {
+                      toast.error("Stock cannot be negative");
+                      return;
+                    }
+                    if (value > MAX_STOCK) {
+                      toast.error(`Stock cannot exceed ${MAX_STOCK} units`);
+                      return;
+                    }
                     setNewProductData({
                       ...newProductData,
                       stock: e.target.value,
-                    })
-                  }
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    // Prevent minus sign
+                    if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="0"
                 />
               </div>
@@ -1447,7 +1506,7 @@ export default function ProductManagement() {
                 !sellData.quantity ||
                 Number.parseInt(sellData.quantity) <= 0 ||
                 Number.parseInt(sellData.quantity) >
-                  (selectedProduct?.stock || 0)
+                (selectedProduct?.stock || 0)
               }
             >
               Process Sale
@@ -1594,7 +1653,7 @@ export default function ProductManagement() {
                 !shipmentData.driverId ||
                 Number.parseInt(shipmentData.quantity) <= 0 ||
                 Number.parseInt(shipmentData.quantity) >
-                  (selectedProduct?.stock || 0)
+                (selectedProduct?.stock || 0)
               }
             >
               {loading ? "Processing..." : "Confirm Shipment"}
@@ -1648,13 +1707,21 @@ export default function ProductManagement() {
                 id="edit-price"
                 type="number"
                 step="0.01"
+                min={MIN_PRICE}
+                max={MAX_PRICE}
                 value={editProductData.price}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (value < 0) return;
+                  if (value > MAX_PRICE) {
+                    toast.error(`Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`);
+                    return;
+                  }
                   setEditProductData({
                     ...editProductData,
                     price: e.target.value,
-                  })
-                }
+                  });
+                }}
               />
             </div>
             <div className="grid gap-2">
@@ -1662,13 +1729,21 @@ export default function ProductManagement() {
               <Input
                 id="edit-stock"
                 type="number"
+                min={MIN_STOCK}
+                max={MAX_STOCK}
                 value={editProductData.stock}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value < 0) return;
+                  if (value > MAX_STOCK) {
+                    toast.error(`Stock cannot exceed ${MAX_STOCK} units`);
+                    return;
+                  }
                   setEditProductData({
                     ...editProductData,
                     stock: e.target.value,
-                  })
-                }
+                  });
+                }}
               />
             </div>
             <div className="grid gap-2">
