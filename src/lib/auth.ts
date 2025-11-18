@@ -9,6 +9,12 @@ import { admin, cashier, delivery, user, ac } from "@/better-auth/permissions";
 const resend = getResend();
 
 export const auth = betterAuth({
+  advanced: {
+    ipAddress: {
+      // Vercel automatically sets x-forwarded-for header in production
+      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+    },
+  },
   database: mongodbAdapter(db),
   trustedOrigins: [
     process.env.NODE_ENV === "production"
@@ -17,6 +23,29 @@ export const auth = betterAuth({
     process.env.NEXT_PUBLIC_URL || "https://lgw123.vercel.app/",
   ],
   appName: "LGW Warehouse",
+  rateLimit: {
+    // Only enable rate limiting in production where IP headers are available
+    enabled: process.env.NODE_ENV === "production",
+    // Store rate limit data in MongoDB instead of memory
+    storage: "database",
+    modelName: "rateLimit", // Collection name in MongoDB
+    window: 60, // 60 seconds
+    max: 10, // 10 requests per window
+    customRules: {
+      "/sign-in/email": {
+        window: 60, // 60 seconds
+        max: 5, // 5 login attempts per minute per IP
+      },
+      "/two-factor/verify": {
+        window: 60, // 60 seconds
+        max: 5, // 5 2FA attempts per minute per IP
+      },
+      "/two-factor/send-otp": {
+        window: 60,
+        max: 3, // Limit OTP sending to prevent spam
+      },
+    },
+  },
   emailAndPassword: {
     requireEmailVerification: true,
     enabled: true,
