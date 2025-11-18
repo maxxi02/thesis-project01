@@ -23,6 +23,8 @@ interface AIChatWidgetProps {
   analytics: unknown;
 }
 
+type FormatType = "paragraph" | "bullets";
+
 const PROMPT_SUGGESTIONS = [
   "What products should I restock urgently?",
   "Which products are performing best?",
@@ -39,7 +41,7 @@ export function AIChatWidget({ analytics }: AIChatWidgetProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
-  const [format, setFormat] = useState<"paragraph" | "bullets">("paragraph");
+  const [format, setFormat] = useState<FormatType>("paragraph");
   const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +153,10 @@ export function AIChatWidget({ analytics }: AIChatWidgetProps) {
     handleSend(suggestion);
   };
 
+  const handleFormatChange = (value: string) => {
+    setFormat(value as FormatType);
+  };
+
   return (
     <>
       {/* Floating Button */}
@@ -176,7 +182,7 @@ export function AIChatWidget({ analytics }: AIChatWidgetProps) {
               🤖 Nivek&#39;s Analysis
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Select value={format} onValueChange={(v: any) => setFormat(v)}>
+              <Select value={format} onValueChange={handleFormatChange}>
                 <SelectTrigger className="w-[130px] h-8">
                   <SelectValue />
                 </SelectTrigger>
