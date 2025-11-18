@@ -8,6 +8,35 @@ import { admin, cashier, delivery, user, ac } from "@/better-auth/permissions";
 
 const resend = getResend();
 
+
+const emailRateLimitStorage = {
+  get: async (key: string) => {
+    // Check if this is a sign-in request by looking at the key pattern
+    if (key.includes('/sign-in/email')) {
+      // Don't use IP-based key for sign-in
+      return null;
+    }
+
+    const collection = db.collection("rateLimit");
+    const result = await collection.findOne({ key });
+    return result ? { count: result.count, lastRequest: result.lastRequest } : null;
+  },
+  set: async (key: string, value: { count: number; lastRequest: number }) => {
+    // Skip storing IP-based keys for sign-in
+    if (key.includes('/sign-in/email')) {
+      return;
+    }
+
+    const collection = db.collection("rateLimit");
+    await collection.updateOne(
+      { key },
+      { $set: { ...value, key } },
+      { upsert: true }
+    );
+  },
+};
+
+
 export const auth = betterAuth({
   database: mongodbAdapter(db),
   advanced: {
@@ -29,43 +58,12 @@ export const auth = betterAuth({
     window: 60,
     max: 10,
     customRules: {
-      "/sign-in/email": async (request) => {
-        // Extract email from request body
-        const body = await request.json();
-        const email = body.email;
-
-        if (email) {
-          // Use email as the rate limit key instead of IP
-          return {
-            window: 60,
-            max: 5,
-            key: `email:${email}`, // Custom key based on email
-          };
-        }
-
-        // Fallback to default IP-based rate limiting
-        return {
-          window: 60,
-          max: 5,
-        };
-      },
-      "/two-factor/send-otp": async (request) => {
-        // For 2FA, you can get the email from the session
-        // Since the user is already authenticated at this point
-        const session = request.headers.get("cookie");
-        // Parse session to get user email if needed
-        return {
-          window: 60,
-          max: 5,
-          key: session ? `otp:${session}` : undefined, // Use session-based key
-        };
-      },
-      "/two-factor/verify-totp": {
+      "/two-factor/*": {
         window: 10,
         max: 5,
       },
-      "/two-factor/verify-otp": {
-        window: 10,
+      "/two-factor/send-otp": {
+        window: 60,
         max: 5,
       },
     },

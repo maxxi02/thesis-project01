@@ -96,10 +96,35 @@ export function SigninForm({
   async function onSubmit(values: z.infer<typeof signInSchema>) {
     try {
       const { email, password } = values;
+
+      // Check email-based rate limit before attempting sign-in
+      const rateLimitKey = `email-signin:${email}`;
+      const rateLimitCheck = await fetch('/api/check-rate-limit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: rateLimitKey, window: 60, max: 5 }),
+      });
+
+      if (!rateLimitCheck.ok) {
+        const data = await rateLimitCheck.json();
+        toast.error("Too Many Attempts", {
+          description: `Too many login attempts for this email. Please try again in ${data.retryAfter} seconds.`,
+          richColors: true,
+        });
+        return;
+      }
+
       await authClient.signIn.email(
-        { email: email, password: password },
+        { email, password },
         {
           onSuccess: async (ctx) => {
+            // Clear rate limit on successful login
+            await fetch('/api/clear-rate-limit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: rateLimitKey }),
+            });
+
             if (ctx.data.twoFactorRedirect) {
               setEmail(email);
               setShow2FAModal(true);
@@ -108,7 +133,13 @@ export function SigninForm({
             }
           },
           onError: async (ctx) => {
-            // Check if it's a rate limit error
+            // Increment rate limit on failed login
+            await fetch('/api/increment-rate-limit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: rateLimitKey }),
+            });
+
             if (ctx.error.status === 429) {
               toast.error("Too Many Attempts", {
                 description: "Too many login attempts. Please try again later.",
@@ -254,7 +285,7 @@ export function SigninForm({
                   <Link
                     href="/forgot-password"
                     className="ml-auto text-sm underline-offset-4 hover:underline"
-                  >  
+                  >
                     Forgot your password?
                   </Link>
                 </div>
@@ -371,8 +402,8 @@ export function SigninForm({
                       {isResending
                         ? "Sending..."
                         : countdown > 0
-                        ? `Resend code in ${countdown}s`
-                        : "Resend verification code"}
+                          ? `Resend code in ${countdown}s`
+                          : "Resend verification code"}
                     </Button>
                   </div>
                 )}
