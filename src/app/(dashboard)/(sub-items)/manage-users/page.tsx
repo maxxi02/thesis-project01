@@ -48,7 +48,9 @@ import { UserData, UserRole } from "@/types/user-type";
 // Form schemas - Fixed to make boolean fields required
 const createUserSchema = z
   .object({
-    name: z.string().min(2, "Name must be at least 2 characters"),
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    middleName: z.string().optional(),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
     role: z.enum(["admin", "cashier", "delivery", "user"]),
     useGeneratedPassword: z.boolean(),
@@ -95,7 +97,9 @@ const UserManagementPage = () => {
   const form = useForm<CreateUserFormValues>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
-      name: "",
+      firstName: "",
+      middleName: "",
+      lastName: "",
       email: "",
       role: "user",
       useGeneratedPassword: true,
@@ -228,13 +232,22 @@ const UserManagementPage = () => {
 
   const onSubmit = async (values: CreateUserFormValues) => {
     try {
+      // Combine name parts
+      const fullName = [
+        values.firstName,
+        values.middleName?.trim(),
+        values.lastName
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       const password = values.useGeneratedPassword
         ? generatePassword()
         : values.password!;
 
       // Create user with Better Auth
       const response = await authClient.admin.createUser({
-        name: values.name,
+        name: fullName, // Use combined full name
         email: values.email,
         password,
         role: values.role,
@@ -253,7 +266,7 @@ const UserManagementPage = () => {
 
       const newUser: UserData = {
         id: userData.id,
-        name: userData.name || values.name,
+        name: userData.name || fullName, // Use combined full name
         email: userData.email,
         role: values.role,
         emailVerified: userData.emailVerified || false,
@@ -262,7 +275,7 @@ const UserManagementPage = () => {
         createdAt: new Date().toISOString(),
       };
 
-      // Send welcome email if requested
+      // Rest of the function remains the same...
       if (values.sendCredentials) {
         const emailSent = await sendWelcomeEmail(newUser, password);
         if (!emailSent) {
@@ -270,7 +283,6 @@ const UserManagementPage = () => {
         }
       }
 
-      // Send verification email if required
       if (values.requireEmailVerification) {
         try {
           await authClient.sendVerificationEmail({
@@ -282,18 +294,16 @@ const UserManagementPage = () => {
         }
       }
 
-      // Update local state
       setUsers((prev) => [...prev, newUser]);
       setShowCreateModal(false);
       form.reset();
 
-      // Show success message
       if (values.useGeneratedPassword && !values.sendCredentials) {
         toast.success(`User created! Generated password: ${password}`, {
           duration: 10000,
         });
       } else {
-        toast.success(`User ${values.name} created successfully!`);
+        toast.success(`User ${fullName} created successfully!`);
       }
     } catch (error) {
       console.error("Error creating user:", error);
@@ -417,14 +427,45 @@ const UserManagementPage = () => {
                 className="space-y-6"
               >
                 <div className="grid gap-4">
+                  {/* First Name Field */}
                   <FormField
                     control={form.control}
-                    name="name"
+                    name="firstName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Full Name</FormLabel>
+                        <FormLabel>First Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="John Doe" {...field} />
+                          <Input placeholder="John" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Middle Name Field (Optional) */}
+                  <FormField
+                    control={form.control}
+                    name="middleName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Middle Name (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Michael" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Last Name Field */}
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Last Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Doe" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
