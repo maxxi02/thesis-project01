@@ -84,7 +84,7 @@ export async function GET(request: Request) {
 
     if (allCities) {
       // FIX 2: Skip geocoding during build - too slow!
-      if (includeCoordinates && process.env.VERCEL_ENV === "production") {
+      if (includeCoordinates && process.env.NODE_ENV === "production") {
         return NextResponse.json(
           {
             success: false,
@@ -190,7 +190,7 @@ export async function GET(request: Request) {
           };
 
           // Only geocode if coordinates requested and not building
-          if (includeCoordinates && process.env.VERCEL_ENV !== "production") {
+          if (includeCoordinates && process.env.NODE_ENV !== "production") {
             const fullAddress = `${barangay.name}, Batangas City, Batangas, Philippines`;
             const coordinates = await getCoordinates(fullAddress);
             await delay(1100);
