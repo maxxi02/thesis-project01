@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 
-const PSGC_BASE_URL = process.env.PSGC_BASE_URL;
-const NOMINATIM_URL = process.env.NOMINATIM_URL;
+const PSGC_BASE_URL = process.env.PSGC_BASE_URL || "https://psgc.gitlab.io/api";
+const NOMINATIM_URL = process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org";
+
+// Add this validation
+console.log('🔍 Environment Check:', {
+  PSGC_BASE_URL,
+  NOMINATIM_URL,
+  hasVars: !!(process.env.PSGC_BASE_URL && process.env.NOMINATIM_URL)
+});
+
 
 interface Location {
   code: string;

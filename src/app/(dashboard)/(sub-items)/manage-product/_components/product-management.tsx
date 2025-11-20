@@ -190,26 +190,39 @@ export default function ProductManagement() {
 const loadLocations = async () => {
   try {
     setLoading(true);
-    // Remove coordinates parameter - we don't need them for the dropdown
+    console.log('📍 Fetching locations...');
+    
     const response = await fetch("/api/locations/batangas?allCities=true");
     
+    console.log('Response status:', response.status);
+    console.log('Response ok:', response.ok);
+    
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ API Error:', errorText);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
     const data = await response.json();
+    console.log('✅ API Response:', {
+      success: data.success,
+      count: data.count,
+      hasLocations: !!data.locations,
+      locationsLength: data.locations?.length
+    });
 
     if (data.success && data.locations?.length > 0) {
       setApiLocations(data.locations);
       console.log(`✅ Loaded ${data.count} locations`);
     } else {
+      console.warn('⚠️ No locations in response:', data);
       setApiLocations([]);
       toast.error("No locations available");
     }
   } catch (error) {
-    console.error("Failed to fetch locations:", error);
+    console.error("❌ Failed to fetch locations:", error);
     setApiLocations([]);
-    toast.error("Failed to load locations. Please refresh the page.");
+    toast.error(`Failed to load locations: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
     setLoading(false);
   }
