@@ -187,30 +187,33 @@ export default function ProductManagement() {
     }
   };
   useEffect(() => {
-    const loadLocations = async () => {
-      try {
-        setLoading(true);
-        // Changed to allCities=true
-        const response = await fetch("/api/locations/batangas?allCities=true");
-        const data = await response.json();
+const loadLocations = async () => {
+  try {
+    setLoading(true);
+    // Remove coordinates parameter - we don't need them for the dropdown
+    const response = await fetch("/api/locations/batangas?allCities=true");
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
 
-        if (data.success && data.locations?.length > 0) {
-          setApiLocations(data.locations);
-          toast.success(
-            `Loaded ${data.count} locations from all Batangas cities`
-          );
-        } else {
-          setApiLocations([]);
-          toast.error("No locations available from API");
-        }
-      } catch (error) {
-        console.error("Failed to fetch locations:", error);
-        setApiLocations([]);
-        toast.error("Failed to load locations from API");
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (data.success && data.locations?.length > 0) {
+      setApiLocations(data.locations);
+      console.log(`✅ Loaded ${data.count} locations`);
+    } else {
+      setApiLocations([]);
+      toast.error("No locations available");
+    }
+  } catch (error) {
+    console.error("Failed to fetch locations:", error);
+    setApiLocations([]);
+    toast.error("Failed to load locations. Please refresh the page.");
+  } finally {
+    setLoading(false);
+  }
+};
 
     if (mounted) {
       loadLocations();

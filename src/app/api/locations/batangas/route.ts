@@ -66,7 +66,7 @@ export async function GET(request: Request) {
     const allCities = searchParams.get("allCities") === "true";
     const includeCoordinates = searchParams.get("coordinates") === "true";
 
-    // FIX 1: Check cache first
+    // Check cache first (only for requests WITHOUT coordinates)
     if (
       !includeCoordinates &&
       cachedLocations &&
@@ -83,26 +83,13 @@ export async function GET(request: Request) {
     }
 
     if (allCities) {
-      // FIX 2: Skip geocoding during build - too slow!
-      if (includeCoordinates && process.env.NODE_ENV === "production") {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Coordinates not available during build. Fetch without coordinates first.",
-          },
-          { status: 400 }
-        );
-      }
-
       const citiesResponse = await fetch(
         `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`,
-        { next: { revalidate: 86400 } } // Cache for 24 hours
+        { next: { revalidate: 86400 } }
       );
       const cities: Location[] = await citiesResponse.json();
 
-      // FIX 3: Process in smaller batches to avoid timeout
-      const batchSize = 5; // Process 5 cities at a time
+      const batchSize = 5;
       const allLocations: FormattedLocation[] = [];
 
       for (let i = 0; i < cities.length; i += batchSize) {
@@ -117,7 +104,7 @@ export async function GET(request: Request) {
               );
               const barangays: Location[] = await barangaysResponse.json();
 
-              // FIX 4: Return locations WITHOUT coordinates by default
+              // Base location data (always included)
               const locations = barangays.map((barangay: Location) => ({
                 id: barangay.code,
                 barangay: barangay.name,
@@ -128,12 +115,20 @@ export async function GET(request: Request) {
                 barangayCode: barangay.code,
               }));
 
+              // Only add coordinates if explicitly requested
+              if (includeCoordinates) {
+                return await Promise.all(
+                  locations.map(async (location) => {
+                    const coordinates = await getCoordinates(location.fullAddress + ", Philippines");
+                    await delay(1100); // Rate limiting
+                    return coordinates ? { ...location, coordinates } : location;
+                  })
+                );
+              }
+
               return locations;
             } catch (error) {
-              console.error(
-                `Error fetching barangays for ${city.name}:`,
-                error
-              );
+              console.error(`Error fetching barangays for ${city.name}:`, error);
               return [];
             }
           })
@@ -142,9 +137,11 @@ export async function GET(request: Request) {
         allLocations.push(...batchResults.flat());
       }
 
-      // Cache the results
-      cachedLocations = allLocations;
-      cacheTimestamp = Date.now();
+      // Cache only if coordinates were NOT included
+      if (!includeCoordinates) {
+        cachedLocations = allLocations;
+        cacheTimestamp = Date.now();
+      }
 
       return NextResponse.json({
         success: true,
@@ -152,7 +149,7 @@ export async function GET(request: Request) {
         locations: allLocations,
       });
     } else {
-      // Batangas City only - this is faster
+      // Batangas City only
       const citiesResponse = await fetch(
         `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`,
         { next: { revalidate: 86400 } }
@@ -176,33 +173,27 @@ export async function GET(request: Request) {
       );
       const barangays: Location[] = await barangaysResponse.json();
 
-      // FIX 5: Only add coordinates if explicitly requested AND not during build
-      const formattedLocations: FormattedLocation[] = await Promise.all(
-        barangays.map(async (barangay: Location) => {
-          const location: FormattedLocation = {
-            id: barangay.code,
-            barangay: barangay.name,
-            city: "Batangas City",
-            province: "Batangas",
-            fullAddress: `${barangay.name}, Batangas City, Batangas`,
-            cityCode: batangasCityCode,
-            barangayCode: barangay.code,
-          };
+      // Base location data
+      let formattedLocations: FormattedLocation[] = barangays.map((barangay: Location) => ({
+        id: barangay.code,
+        barangay: barangay.name,
+        city: "Batangas City",
+        province: "Batangas",
+        fullAddress: `${barangay.name}, Batangas City, Batangas`,
+        cityCode: batangasCityCode,
+        barangayCode: barangay.code,
+      }));
 
-          // Only geocode if coordinates requested and not building
-          if (includeCoordinates && process.env.NODE_ENV !== "production") {
-            const fullAddress = `${barangay.name}, Batangas City, Batangas, Philippines`;
-            const coordinates = await getCoordinates(fullAddress);
-            await delay(1100);
-
-            if (coordinates) {
-              location.coordinates = coordinates;
-            }
-          }
-
-          return location;
-        })
-      );
+      // Only geocode if coordinates explicitly requested
+      if (includeCoordinates) {
+        formattedLocations = await Promise.all(
+          formattedLocations.map(async (location) => {
+            const coordinates = await getCoordinates(location.fullAddress + ", Philippines");
+            await delay(1100); // Rate limiting
+            return coordinates ? { ...location, coordinates } : location;
+          })
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -219,6 +210,6 @@ export async function GET(request: Request) {
   }
 }
 
-// FIX 6: Add route config to prevent this from running during build
-export const dynamic = "force-dynamic"; // Don't pre-render this route
-export const fetchCache = "force-no-store"; // Don't cache during build
+// Keep dynamic routing
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
