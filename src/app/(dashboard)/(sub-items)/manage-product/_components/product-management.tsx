@@ -589,7 +589,7 @@ const loadLocations = async () => {
               fcmToken: driver.fcmToken,
             },
             destination: shipmentData.destination,
-            coordinates: selectedAddress?.coordinates || null,
+            // coordinates: selectedAddress?.coordinates || null,
             note: shipmentData.note,
             estimatedDelivery: shipmentData.estimatedDelivery || null,
             markedBy: {
@@ -640,7 +640,7 @@ const loadLocations = async () => {
             },
             customerAddress: {
               destination: shipmentData.destination,
-              coordinates: selectedAddress?.coordinates || null,
+              // coordinates: selectedAddress?.coordinates || null,
             },
             deliveryPersonnel: {
               id: driver.id,
