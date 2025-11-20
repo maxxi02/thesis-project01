@@ -421,7 +421,6 @@ export default function Delivery() {
             }
             break;
           case "NEW_ASSIGNMENT":
-            // Remove or fix the notification trigger that's causing the error
             try {
               NotificationHelper.triggerNotification({
                 sound: true,
