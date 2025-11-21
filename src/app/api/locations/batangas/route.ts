@@ -10,7 +10,6 @@ console.log('🔍 Environment Check:', {
   hasVars: !!(process.env.PSGC_BASE_URL && process.env.NOMINATIM_URL)
 });
 
-
 interface Location {
   code: string;
   name: string;
@@ -36,34 +35,53 @@ let cacheTimestamp: number | null = null;
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 async function getCoordinates(
-  address: string
+  address: string,
+  retries = 2
 ): Promise<{ lat: number; lng: number } | null> {
-  try {
-const response = await fetch(
-  `${NOMINATIM_URL}/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-  {
-    headers: {
-      "User-Agent": "LGW Hardware",
-      "Accept": "application/json",
-      "Referer": process.env.NEXT_PUBLIC_URL || "https://thesis-project01.vercel.app"
-    },
-    next: { revalidate: 86400 },
-  }
-);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
-    const data = await response.json();
+      const response = await fetch(
+        `${NOMINATIM_URL}/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+        {
+          headers: {
+            "User-Agent": "LGW Hardware",
+            "Accept": "application/json",
+            "Referer": process.env.NEXT_PUBLIC_URL || "https://thesis-project01.vercel.app"
+          },
+          signal: controller.signal,
+          next: { revalidate: 86400 },
+        }
+      );
 
-    if (data && data.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-      };
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon),
+        };
+      }
+      return null;
+    } catch (error) {
+      if (attempt < retries) {
+        console.log(`Retry ${attempt + 1}/${retries} for ${address}`);
+        await delay(2000 * (attempt + 1)); // Exponential backoff
+        continue;
+      }
+      console.error(`Failed to geocode ${address} after ${retries + 1} attempts:`, error instanceof Error ? error.message : 'Unknown error');
+      return null;
     }
-    return null;
-  } catch (error) {
-    console.error(`Error geocoding ${address}:`, error);
-    return null;
   }
+  return null;
 }
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -95,13 +113,19 @@ export async function GET(request: Request) {
         `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`,
         { next: { revalidate: 86400 } }
       );
+      
+      if (!citiesResponse.ok) {
+        throw new Error(`Failed to fetch cities: ${citiesResponse.status}`);
+      }
+      
       const cities: Location[] = await citiesResponse.json();
 
-      const batchSize = 5;
+      const batchSize = 3; // Reduced batch size to avoid overwhelming Nominatim
       const allLocations: FormattedLocation[] = [];
 
       for (let i = 0; i < cities.length; i += batchSize) {
         const cityBatch = cities.slice(i, i + batchSize);
+        console.log(`Processing cities ${i + 1}-${Math.min(i + batchSize, cities.length)} of ${cities.length}`);
 
         const batchResults = await Promise.all(
           cityBatch.map(async (city: Location) => {
@@ -110,6 +134,11 @@ export async function GET(request: Request) {
                 `${PSGC_BASE_URL}/cities-municipalities/${city.code}/barangays.json`,
                 { next: { revalidate: 86400 } }
               );
+              
+              if (!barangaysResponse.ok) {
+                throw new Error(`Failed to fetch barangays for ${city.name}: ${barangaysResponse.status}`);
+              }
+              
               const barangays: Location[] = await barangaysResponse.json();
 
               // Base location data (always included)
@@ -125,24 +154,31 @@ export async function GET(request: Request) {
 
               // Only add coordinates if explicitly requested
               if (includeCoordinates) {
-                return await Promise.all(
-                  locations.map(async (location) => {
-                    const coordinates = await getCoordinates(location.fullAddress + ", Philippines");
-                    await delay(1100); // Rate limiting
-                    return coordinates ? { ...location, coordinates } : location;
-                  })
-                );
+                const locationsWithCoords: FormattedLocation[] = [];
+                
+                for (const location of locations) {
+                  const coordinates = await getCoordinates(location.fullAddress + ", Philippines");
+                  await delay(1500); // Increased rate limiting to 1.5s
+                  locationsWithCoords.push(coordinates ? { ...location, coordinates } : location);
+                }
+                
+                return locationsWithCoords;
               }
 
               return locations;
             } catch (error) {
-              console.error(`Error fetching barangays for ${city.name}:`, error);
+              console.error(`Error fetching barangays for ${city.name}:`, error instanceof Error ? error.message : 'Unknown error');
               return [];
             }
           })
         );
 
         allLocations.push(...batchResults.flat());
+        
+        // Add delay between city batches
+        if (includeCoordinates && i + batchSize < cities.length) {
+          await delay(2000);
+        }
       }
 
       // Cache only if coordinates were NOT included
@@ -162,6 +198,11 @@ export async function GET(request: Request) {
         `${PSGC_BASE_URL}/provinces/041000000/cities-municipalities.json`,
         { next: { revalidate: 86400 } }
       );
+      
+      if (!citiesResponse.ok) {
+        throw new Error(`Failed to fetch cities: ${citiesResponse.status}`);
+      }
+      
       const cities: Location[] = await citiesResponse.json();
 
       const batangasCityCode = cities.find(
@@ -179,6 +220,11 @@ export async function GET(request: Request) {
         `${PSGC_BASE_URL}/cities-municipalities/${batangasCityCode}/barangays.json`,
         { next: { revalidate: 86400 } }
       );
+      
+      if (!barangaysResponse.ok) {
+        throw new Error(`Failed to fetch barangays: ${barangaysResponse.status}`);
+      }
+      
       const barangays: Location[] = await barangaysResponse.json();
 
       // Base location data
@@ -194,13 +240,16 @@ export async function GET(request: Request) {
 
       // Only geocode if coordinates explicitly requested
       if (includeCoordinates) {
-        formattedLocations = await Promise.all(
-          formattedLocations.map(async (location) => {
-            const coordinates = await getCoordinates(location.fullAddress + ", Philippines");
-            await delay(1100); // Rate limiting
-            return coordinates ? { ...location, coordinates } : location;
-          })
-        );
+        const locationsWithCoords: FormattedLocation[] = [];
+        
+        for (const location of formattedLocations) {
+          console.log(`Geocoding: ${location.fullAddress}`);
+          const coordinates = await getCoordinates(location.fullAddress + ", Philippines");
+          await delay(1500); // Rate limiting
+          locationsWithCoords.push(coordinates ? { ...location, coordinates } : location);
+        }
+        
+        formattedLocations = locationsWithCoords;
       }
 
       return NextResponse.json({
@@ -212,7 +261,11 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Error fetching Batangas locations:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch locations" },
+      { 
+        success: false, 
+        error: "Failed to fetch locations",
+        details: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }

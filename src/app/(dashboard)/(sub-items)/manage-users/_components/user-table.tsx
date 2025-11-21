@@ -22,7 +22,6 @@ import {
   User,
   MoreVertical,
   Mail,
-  Shield,
   Trash2,
   Ban,
   UserCheck,
@@ -169,25 +168,6 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() =>
-                            onUserAction("resend-credentials", user.id)
-                          }
-                        >
-                          <Mail className="mr-2 h-4 w-4" /> Send Credentials
-                        </DropdownMenuItem>
-
-                        {!user.emailVerified && (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              onUserAction("resend-verification", user.id)
-                            }
-                          >
-                            <Shield className="mr-2 h-4 w-4" /> Send
-                            Verification
-                          </DropdownMenuItem>
-                        )}
-
                         {user.banned ? (
                           <DropdownMenuItem
                             onClick={() => onUserAction("unban", user.id)}

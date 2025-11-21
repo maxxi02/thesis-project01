@@ -1,9 +1,10 @@
-// api/send-welcome-email/route.ts
+// app/api/auth/send-welcome-email/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getBrevo } from "@/lib/resend/resend";
+import nodemailer from "nodemailer";
 
 const SENDER_EMAIL = process.env.SENDER_EMAIL || "noreply@yourdomain.com";
 const APP_URL = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+const BREVO_SMTP_KEY = process.env.BREVO_SMTP;
 
 interface SendWelcomeEmailRequest {
   user: {
@@ -20,32 +21,52 @@ export async function POST(request: NextRequest) {
     const body: SendWelcomeEmailRequest = await request.json();
     const { user, tempPassword, isResend = false } = body;
 
+    console.log("Received request body:", { 
+      hasUser: !!user, 
+      hasEmail: !!user?.email, 
+      hasName: !!user?.name, 
+      hasTempPassword: !!tempPassword 
+    });
+
     // Validate required fields
     if (!user?.email || !user?.name || !tempPassword) {
+      console.error("Validation failed:", { user, tempPassword });
       return NextResponse.json(
         {
-          error:
-            "Missing required fields: user.email, user.name, and tempPassword are required",
+          error: "Missing required fields: user.email, user.name, and tempPassword are required",
+          received: {
+            email: user?.email || null,
+            name: user?.name || null,
+            hasTempPassword: !!tempPassword
+          }
         },
         { status: 400 }
       );
     }
 
-    // Get Brevo instance
-    let brevo;
-    try {
-      brevo = getBrevo();
-      console.log("Brevo instance created successfully");
-    } catch (brevoError) {
-      console.error("Failed to initialize Brevo:", brevoError);
+    if (!BREVO_SMTP_KEY) {
+      console.error("BREVO_SMTP key is not configured");
       return NextResponse.json(
         {
           error: "Email service configuration error",
-          details: brevoError instanceof Error ? brevoError.message : "Failed to initialize Brevo",
+          details: "BREVO_SMTP key is missing",
         },
         { status: 500 }
       );
     }
+
+    // Create nodemailer transporter with Brevo SMTP
+    const transporter = nodemailer.createTransport({
+      host: "smtp-relay.brevo.com",
+      port: 587,
+      secure: false, // use TLS
+      auth: {
+        user: SENDER_EMAIL,
+        pass: BREVO_SMTP_KEY,
+      },
+    });
+
+    console.log("SMTP transporter created successfully");
 
     // Email subject and content based on whether it's a new user or resend
     const subject = isResend
@@ -57,28 +78,22 @@ export async function POST(request: NextRequest) {
     console.log("Attempting to send email to:", user.email);
     console.log("Using sender email:", SENDER_EMAIL);
 
-    // Send email using Brevo
-    const emailResponse = await brevo.sendTransacEmail({
-      sender: {
-        email: SENDER_EMAIL,
-        name: "LGW Warehouse",
-      },
-      to: [
-        {
-          email: user.email,
-          name: user.name,
-        },
-      ],
+    // Send email using SMTP
+    const info = await transporter.sendMail({
+      from: `"LGW Warehouse" <${SENDER_EMAIL}>`,
+      to: `"${user.name}" <${user.email}>`,
       subject: subject,
-      htmlContent: emailContent,
-      textContent: generatePlainTextContent(user, tempPassword, isResend),
+      html: emailContent,
+      text: generatePlainTextContent(user, tempPassword, isResend),
     });
+
+    console.log("Email sent successfully:", info.messageId);
 
     return NextResponse.json(
       {
         success: true,
         message: `Welcome email sent successfully to ${user.email}`,
-        emailId: emailResponse.body.messageId,
+        emailId: info.messageId,
       },
       { status: 200 }
     );
@@ -94,7 +109,6 @@ export async function POST(request: NextRequest) {
       {
         error: "Failed to send email",
         details: error instanceof Error ? error.message : "Unknown error",
-        fullError: error && typeof error === 'object' ? JSON.stringify(error) : String(error),
       },
       { status: 500 }
     );

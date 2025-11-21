@@ -44,7 +44,7 @@ export const auth = betterAuth({
     process.env.NODE_ENV === "production"
       ? process.env.NEXT_PUBLIC_URL!
       : process.env.BETTER_AUTH_URL!,
-    process.env.NEXT_PUBLIC_URL || "https://lgw123.vercel.app/",
+    process.env.NEXT_PUBLIC_URL || "https://www.lgwhardware.online",
   ],
   appName: "LGW Warehouse",
   rateLimit: {

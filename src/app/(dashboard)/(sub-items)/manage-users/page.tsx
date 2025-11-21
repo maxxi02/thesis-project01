@@ -31,7 +31,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -40,12 +39,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Loader2, Crown, Users, Truck, CreditCard } from "lucide-react";
+import { Plus, Loader2, Crown, Users, Truck, CreditCard, RefreshCw, Copy, Check } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UsersTable } from "./_components/user-table";
 import { UserData, UserRole } from "@/types/user-type";
 
-// Form schemas - Fixed to make boolean fields required
+// Simplified form schema
 const createUserSchema = z
   .object({
     firstName: z.string().min(2, "First name must be at least 2 characters"),
@@ -53,31 +52,11 @@ const createUserSchema = z
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
     role: z.enum(["admin", "cashier", "delivery", "user"]),
-    useGeneratedPassword: z.boolean(),
-    password: z.string().optional(),
-    confirmPassword: z.string().optional(),
-    sendCredentials: z.boolean(),
-    requireEmailVerification: z.boolean(),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(8, "Password must be at least 8 characters"),
   })
   .refine(
-    (data) => {
-      if (!data.useGeneratedPassword) {
-        return data.password && data.password.length >= 8;
-      }
-      return true;
-    },
-    {
-      message: "Password must be at least 8 characters",
-      path: ["password"],
-    }
-  )
-  .refine(
-    (data) => {
-      if (!data.useGeneratedPassword) {
-        return data.password === data.confirmPassword;
-      }
-      return true;
-    },
+    (data) => data.password === data.confirmPassword,
     {
       message: "Passwords don't match",
       path: ["confirmPassword"],
@@ -93,6 +72,8 @@ const UserManagementPage = () => {
   const [selectedRole, setSelectedRole] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [passwordCopied, setPasswordCopied] = useState(false);
 
   const form = useForm<CreateUserFormValues>({
     resolver: zodResolver(createUserSchema),
@@ -102,20 +83,14 @@ const UserManagementPage = () => {
       lastName: "",
       email: "",
       role: "user",
-      useGeneratedPassword: true,
       password: "",
       confirmPassword: "",
-      sendCredentials: true,
-      requireEmailVerification: true,
     },
   });
 
   const {
-    watch,
     formState: { isSubmitting },
   } = form;
-
-  const useGeneratedPassword = watch("useGeneratedPassword");
 
   useEffect(() => {
     fetchUsers();
@@ -192,7 +167,7 @@ const UserManagementPage = () => {
     return matchesSearch && matchesRole;
   });
 
-  const generatePassword = () => {
+  const generateRandomPassword = () => {
     const chars =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
     let password = "";
@@ -202,31 +177,23 @@ const UserManagementPage = () => {
     return password;
   };
 
-  const sendWelcomeEmail = async (
-    user: UserData,
-    password: string,
-    isResend = false
-  ) => {
+  const handleGeneratePassword = () => {
+    const newPassword = generateRandomPassword();
+    setGeneratedPassword(newPassword);
+    form.setValue("password", newPassword);
+    form.setValue("confirmPassword", newPassword);
+    setPasswordCopied(false);
+    toast.success("Password generated successfully!");
+  };
+
+  const handleCopyPassword = async () => {
     try {
-      const response = await fetch("/api/auth/send-welcome-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user,
-          password,
-          isResend,
-          requireEmailVerification: false,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to send welcome email");
-      }
-
-      return true;
+      await navigator.clipboard.writeText(generatedPassword);
+      setPasswordCopied(true);
+      toast.success("Password copied to clipboard!");
+      setTimeout(() => setPasswordCopied(false), 2000);
     } catch (error) {
-      console.error("Email error:", error);
-      return false;
+      toast.error("Failed to copy password");
     }
   };
 
@@ -241,15 +208,11 @@ const UserManagementPage = () => {
         .filter(Boolean)
         .join(" ");
 
-      const password = values.useGeneratedPassword
-        ? generatePassword()
-        : values.password!;
-
       // Create user with Better Auth
       const response = await authClient.admin.createUser({
-        name: fullName, // Use combined full name
+        name: fullName,
         email: values.email,
-        password,
+        password: values.password,
         role: values.role,
         data: {},
       });
@@ -266,7 +229,7 @@ const UserManagementPage = () => {
 
       const newUser: UserData = {
         id: userData.id,
-        name: userData.name || fullName, // Use combined full name
+        name: userData.name || fullName,
         email: userData.email,
         role: values.role,
         emailVerified: userData.emailVerified || false,
@@ -275,36 +238,12 @@ const UserManagementPage = () => {
         createdAt: new Date().toISOString(),
       };
 
-      // Rest of the function remains the same...
-      if (values.sendCredentials) {
-        const emailSent = await sendWelcomeEmail(newUser, password);
-        if (!emailSent) {
-          toast.warning("User created but welcome email failed to send");
-        }
-      }
-
-      if (values.requireEmailVerification) {
-        try {
-          await authClient.sendVerificationEmail({
-            email: values.email,
-            callbackURL: `${window.location.origin}/verify-email`,
-          });
-        } catch (error) {
-          console.warn("Failed to send verification email:", error);
-        }
-      }
-
       setUsers((prev) => [...prev, newUser]);
       setShowCreateModal(false);
       form.reset();
-
-      if (values.useGeneratedPassword && !values.sendCredentials) {
-        toast.success(`User created! Generated password: ${password}`, {
-          duration: 10000,
-        });
-      } else {
-        toast.success(`User ${fullName} created successfully!`);
-      }
+      setGeneratedPassword("");
+      setPasswordCopied(false);
+      toast.success(`User ${fullName} created successfully!`);
     } catch (error) {
       console.error("Error creating user:", error);
       toast.error(`Failed to create user: ${(error as Error).message}`);
@@ -341,24 +280,6 @@ const UserManagementPage = () => {
             setUsers((prev) => prev.filter((u) => u.id !== userId));
             toast.success(`${user.name} has been deleted`);
           }
-          break;
-
-        case "resend-credentials":
-          const newPassword = generatePassword();
-          const emailSent = await sendWelcomeEmail(user, newPassword, true);
-          if (emailSent) {
-            toast.success(`New credentials sent to ${user.email}`);
-          } else {
-            toast.error("Failed to send credentials email");
-          }
-          break;
-
-        case "resend-verification":
-          await authClient.sendVerificationEmail({
-            email: user.email,
-            callbackURL: `${window.location.origin}/verify-email`,
-          });
-          toast.success(`Verification email sent to ${user.email}`);
           break;
       }
     } catch (error) {
@@ -530,35 +451,12 @@ const UserManagementPage = () => {
 
                   <FormField
                     control={form.control}
-                    name="useGeneratedPassword"
+                    name="password"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">
-                            Generate Password
-                          </FormLabel>
-                          <div className="text-sm text-muted-foreground">
-                            Automatically generate a secure password
-                          </div>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  {!useGeneratedPassword && (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Password</FormLabel>
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
                             <FormControl>
                               <Input
                                 type="password"
@@ -566,73 +464,55 @@ const UserManagementPage = () => {
                                 {...field}
                               />
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="confirmPassword"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Confirm Password</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                placeholder="••••••••"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
-
-                  <FormField
-                    control={form.control}
-                    name="sendCredentials"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">
-                            Send Welcome Email
-                          </FormLabel>
-                          <div className="text-sm text-muted-foreground">
-                            Email login credentials to the user
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={handleGeneratePassword}
+                              title="Generate random password"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
                           </div>
+                          {generatedPassword && (
+                            <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                              <code className="flex-1 text-sm font-mono">
+                                {generatedPassword}
+                              </code>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCopyPassword}
+                              >
+                                {passwordCopied ? (
+                                  <Check className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
 
                   <FormField
                     control={form.control}
-                    name="requireEmailVerification"
+                    name="confirmPassword"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">
-                            Email Verification
-                          </FormLabel>
-                          <div className="text-sm text-muted-foreground">
-                            Require user to verify their email address
-                          </div>
-                        </div>
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
                         <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
+                          <Input
+                            type="password"
+                            placeholder="••••••••"
+                            {...field}
                           />
                         </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -705,7 +585,6 @@ const UserManagementPage = () => {
       </Card>
 
       {/* Users Table */}
-
       <div className="rounded-md border">
         <UsersTable
           users={filteredUsers}
