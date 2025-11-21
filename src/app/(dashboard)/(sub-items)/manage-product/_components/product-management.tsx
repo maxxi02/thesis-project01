@@ -97,7 +97,6 @@ export interface BatangasCityAddress {
 }
 
 export default function ProductManagement() {
-
   const MAX_PRICE = 500000;
   const MAX_STOCK = 500;
   const MIN_PRICE = 0;
@@ -186,52 +185,59 @@ export default function ProductManagement() {
       reader.readAsDataURL(file);
     }
   };
-  useEffect(() => {
-const loadLocations = async () => {
-  try {
-    setLoading(true);
-    console.log('📍 Fetching locations...');
-    
-const response = await fetch("/api/locations/batangas?allCities=true&coordinates=true");
-    
-    console.log('Response status:', response.status);
-    console.log('Response ok:', response.ok);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ API Error:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log('✅ API Response:', {
-      success: data.success,
-      count: data.count,
-      hasLocations: !!data.locations,
-      locationsLength: data.locations?.length
-    });
+  // useEffect(() => {
+  //   const loadLocations = async () => {
+  //     // Don't fetch if already loaded or currently loading
+  //     if (apiLocations.length > 0 || loading) return;
 
-    if (data.success && data.locations?.length > 0) {
-      setApiLocations(data.locations);
-      console.log(`✅ Loaded ${data.count} locations`);
-    } else {
-      console.warn('⚠️ No locations in response:', data);
-      setApiLocations([]);
-      toast.error("No locations available");
-    }
-  } catch (error) {
-    console.error("❌ Failed to fetch locations:", error);
-    setApiLocations([]);
-    toast.error(`Failed to load locations: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  } finally {
-    setLoading(false);
-  }
-};
+  //     try {
+  //       setLoading(true);
+  //       console.log("📍 Fetching locations...");
 
-    if (mounted) {
-      loadLocations();
-    }
-  }, [mounted]);
+  //       const response = await fetch(
+  //         "/api/locations/batangas?allCities=true&coordinates=true"
+  //       );
+
+  //       console.log("Response status:", response.status);
+  //       console.log("Response ok:", response.ok);
+
+  //       if (!response.ok) {
+  //         const errorText = await response.text();
+  //         console.error("❌ API Error:", errorText);
+  //         throw new Error(`HTTP error! status: ${response.status}`);
+  //       }
+
+  //       const data = await response.json();
+  //       console.log("✅ API Response:", {
+  //         success: data.success,
+  //         count: data.count,
+  //         hasLocations: !!data.locations,
+  //         locationsLength: data.locations?.length,
+  //       });
+
+  //       if (data.success && data.locations?.length > 0) {
+  //         setApiLocations(data.locations);
+  //         console.log(`✅ Loaded ${data.count} locations`);
+  //       } else {
+  //         console.warn("⚠️ No locations in response:", data);
+  //         toast.error("No locations available");
+  //       }
+  //     } catch (error) {
+  //       console.error("❌ Failed to fetch locations:", error);
+  //       toast.error(
+  //         `Failed to load locations: ${
+  //           error instanceof Error ? error.message : "Unknown error"
+  //         }`
+  //       );
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+
+  //   if (mounted) {
+  //     loadLocations();
+  //   }
+  // }, [mounted, apiLocations.length, loading]); // Added dependencies
 
   // Filter products based on search term
   const filteredProducts = products.filter(
@@ -430,12 +436,13 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
   };
 
   const confirmAddProduct = async () => {
-
     const price = parseFloat(newProductData.price);
     const stock = parseInt(newProductData.stock);
 
     if (price < MIN_PRICE || price > MAX_PRICE) {
-      toast.error(`Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`);
+      toast.error(
+        `Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`
+      );
       return;
     }
 
@@ -550,7 +557,7 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
       setLoading(false);
     }
   };
-  const handleShip = (product: Product) => {
+  const handleShip = async (product: Product) => {
     setSelectedProduct(product);
     setShipmentData({
       quantity: "",
@@ -560,6 +567,32 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
       estimatedDelivery: "",
     });
     setShowShipModal(true);
+
+    // Load locations if not already loaded
+    if (apiLocations.length === 0) {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          "/api/locations/batangas?allCities=true&coordinates=true"
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success && data.locations?.length > 0) {
+          setApiLocations(data.locations);
+        } else {
+          toast.error("No locations available");
+        }
+      } catch (error) {
+        console.error("Failed to fetch locations:", error);
+        toast.error("Failed to load locations");
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const confirmShipment = async () => {
@@ -588,9 +621,9 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
           addr.fullAddress === shipmentData.destination
       );
 
-    // ✅ Log to debug
-    console.log('Selected Address:', selectedAddress);
-    console.log('Has coordinates:', selectedAddress?.coordinates);
+      // ✅ Log to debug
+      console.log("Selected Address:", selectedAddress);
+      console.log("Has coordinates:", selectedAddress?.coordinates);
 
       const response = await fetch(
         `/api/products/${selectedProduct._id}/to-ship`,
@@ -686,8 +719,9 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
       });
 
       toast.success("Shipment Confirmed", {
-        description: `${parseInt(shipmentData.quantity)} units of ${selectedProduct.name
-          } assigned to ${driver.name} for delivery.`,
+        description: `${parseInt(shipmentData.quantity)} units of ${
+          selectedProduct.name
+        } assigned to ${driver.name} for delivery.`,
       });
 
       await fetchProducts();
@@ -723,7 +757,9 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
     const stock = parseInt(editProductData.stock);
 
     if (price < MIN_PRICE || price > MAX_PRICE) {
-      toast.error(`Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`);
+      toast.error(
+        `Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`
+      );
       return;
     }
 
@@ -731,7 +767,6 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
       toast.error(`Stock must be between ${MIN_STOCK} and ${MAX_STOCK} units`);
       return;
     }
-
 
     try {
       setLoading(true);
@@ -1364,7 +1399,9 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
                     const value = parseFloat(e.target.value);
                     if (value < 0) return;
                     if (value > MAX_PRICE) {
-                      toast.error(`Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`);
+                      toast.error(
+                        `Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`
+                      );
                       return;
                     }
                     setNewProductData({
@@ -1400,7 +1437,7 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
                   }}
                   onKeyDown={(e) => {
                     // Prevent minus sign
-                    if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+                    if (e.key === "-" || e.key === "e" || e.key === "E") {
                       e.preventDefault();
                     }
                   }}
@@ -1526,7 +1563,7 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
                 !sellData.quantity ||
                 Number.parseInt(sellData.quantity) <= 0 ||
                 Number.parseInt(sellData.quantity) >
-                (selectedProduct?.stock || 0)
+                  (selectedProduct?.stock || 0)
               }
             >
               Process Sale
@@ -1673,7 +1710,7 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
                 !shipmentData.driverId ||
                 Number.parseInt(shipmentData.quantity) <= 0 ||
                 Number.parseInt(shipmentData.quantity) >
-                (selectedProduct?.stock || 0)
+                  (selectedProduct?.stock || 0)
               }
             >
               {loading ? "Processing..." : "Confirm Shipment"}
@@ -1734,7 +1771,9 @@ const response = await fetch("/api/locations/batangas?allCities=true&coordinates
                   const value = parseFloat(e.target.value);
                   if (value < 0) return;
                   if (value > MAX_PRICE) {
-                    toast.error(`Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`);
+                    toast.error(
+                      `Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`
+                    );
                     return;
                   }
                   setEditProductData({
