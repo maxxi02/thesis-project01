@@ -3,11 +3,10 @@ import { admin as adminPlugin, twoFactor } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { db } from "@/database/mongodb";
-import { getResend } from "./resend/resend";
 import { admin, cashier, delivery, user, ac } from "@/better-auth/permissions";
+import { getBrevo } from "./resend/resend";
 
-const resend = getResend();
-
+const brevo = getBrevo();
 
 const emailRateLimitStorage = {
   get: async (key: string) => {
@@ -16,7 +15,6 @@ const emailRateLimitStorage = {
       // Don't use IP-based key for sign-in
       return null;
     }
-
     const collection = db.collection("rateLimit");
     const result = await collection.findOne({ key });
     return result ? { count: result.count, lastRequest: result.lastRequest } : null;
@@ -26,7 +24,6 @@ const emailRateLimitStorage = {
     if (key.includes('/sign-in/email')) {
       return;
     }
-
     const collection = db.collection("rateLimit");
     await collection.updateOne(
       { key },
@@ -35,7 +32,6 @@ const emailRateLimitStorage = {
     );
   },
 };
-
 
 export const auth = betterAuth({
   database: mongodbAdapter(db),
@@ -72,22 +68,28 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
-      await resend.emails.send({
-        from: `LGW Warehouse <${process.env.SENDER_EMAIL!}>`,
-        to: user.email,
+      await brevo.sendTransacEmail({
+        sender: { 
+          email: process.env.SENDER_EMAIL!, 
+          name: "LGW Warehouse" 
+        },
+        to: [{ email: user.email }],
         subject: "Reset your password",
-        text: `Click the link to reset your password: ${url}`,
+        htmlContent: `<html><body><p>Click the link to reset your password:</p><p><a href="${url}">${url}</a></p></body></html>`,
       });
     },
   },
   emailVerification: {
     sendOnSignUp: true,
     sendVerificationEmail: async ({ user, url }) => {
-      await resend.emails.send({
-        from: `LGW Warehouse <${process.env.SENDER_EMAIL!}>`,
-        to: user.email,
+      await brevo.sendTransacEmail({
+        sender: { 
+          email: process.env.SENDER_EMAIL!, 
+          name: "LGW Warehouse" 
+        },
+        to: [{ email: user.email }],
         subject: "Verify your email address",
-        text: `Click the link to verify your email: ${url}`,
+        htmlContent: `<html><body><p>Click the link to verify your email:</p><p><a href="${url}">${url}</a></p></body></html>`,
       });
     },
   },
@@ -95,11 +97,14 @@ export const auth = betterAuth({
     changeEmail: {
       enabled: true,
       sendChangeEmailVerification: async ({ user, url }) => {
-        await resend.emails.send({
-          from: `LGW Warehouse <${process.env.SENDER_EMAIL!}>`,
-          to: user.email,
+        await brevo.sendTransacEmail({
+          sender: { 
+            email: process.env.SENDER_EMAIL!, 
+            name: "LGW Warehouse" 
+          },
+          to: [{ email: user.email }],
           subject: "Approve email change",
-          text: `Click the link to approve the change: ${url}`,
+          htmlContent: `<html><body><p>Click the link to approve the change:</p><p><a href="${url}">${url}</a></p></body></html>`,
         });
       },
     },
@@ -118,11 +123,14 @@ export const auth = betterAuth({
       skipVerificationOnEnable: true,
       otpOptions: {
         async sendOTP({ user, otp }) {
-          await resend.emails.send({
-            from: `LGW Warehouse <${process.env.SENDER_EMAIL!}>`,
-            to: user.email,
+          await brevo.sendTransacEmail({
+            sender: { 
+              email: process.env.SENDER_EMAIL!, 
+              name: "LGW Warehouse" 
+            },
+            to: [{ email: user.email }],
             subject: "2FA Verification",
-            text: `Verify your OTP: ${otp}`,
+            htmlContent: `<html><body><p>Your verification code:</p><h2>${otp}</h2></body></html>`,
           });
         },
       },

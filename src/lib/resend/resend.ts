@@ -1,14 +1,17 @@
-import { Resend } from "resend";
+import * as brevo from "@getbrevo/brevo";
 
-let resendInstance: Resend | null = null;
+let brevoInstance: brevo.TransactionalEmailsApi | null = null;
 
-export function getResend(): Resend {
-  if (!resendInstance) {
-    const apiKey = process.env.RESEND_API_KEY;
+export function getBrevo(): brevo.TransactionalEmailsApi {
+  if (!brevoInstance) {
+    const apiKey = process.env.BREVO_API_KEY;
     if (!apiKey) {
-      throw new Error("RESEND_API_KEY is not configured");
+      throw new Error("BREVO_API_KEY is not configured");
     }
-    resendInstance = new Resend(apiKey);
+    
+    brevoInstance = new brevo.TransactionalEmailsApi();
+    brevoInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, apiKey);
   }
-  return resendInstance;
+  
+  return brevoInstance;
 }

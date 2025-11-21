@@ -1,9 +1,9 @@
 // api/send-welcome-email/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import { getBrevo } from "@/lib/resend/resend";
 
 const SENDER_EMAIL = process.env.SENDER_EMAIL || "noreply@yourdomain.com";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const APP_URL = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
 interface SendWelcomeEmailRequest {
   user: {
@@ -20,19 +20,6 @@ export async function POST(request: NextRequest) {
     const body: SendWelcomeEmailRequest = await request.json();
     const { user, tempPassword, isResend = false } = body;
 
-    // Get API key at runtime, not at module level
-    const apiKey = process.env.RESEND_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Resend API key is not configured" },
-        { status: 500 }
-      );
-    }
-
-    // Initialize Resend only when needed with valid API key
-    const resend = new Resend(apiKey);
-
     // Validate required fields
     if (!user?.email || !user?.name || !tempPassword) {
       return NextResponse.json(
@@ -44,6 +31,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get Brevo instance
+    let brevo;
+    try {
+      brevo = getBrevo();
+      console.log("Brevo instance created successfully");
+    } catch (brevoError) {
+      console.error("Failed to initialize Brevo:", brevoError);
+      return NextResponse.json(
+        {
+          error: "Email service configuration error",
+          details: brevoError instanceof Error ? brevoError.message : "Failed to initialize Brevo",
+        },
+        { status: 500 }
+      );
+    }
+
     // Email subject and content based on whether it's a new user or resend
     const subject = isResend
       ? "Your Account Credentials - LGW Warehouse"
@@ -51,37 +54,47 @@ export async function POST(request: NextRequest) {
 
     const emailContent = generateEmailContent(user, tempPassword, isResend);
 
-    // Send email using Resend
-    const emailResponse = await resend.emails.send({
-      from: `LGW Warehouse <${SENDER_EMAIL}>`,
-      to: user.email,
-      subject: subject,
-      html: emailContent,
-      text: generatePlainTextContent(user, tempPassword, isResend),
-    });
+    console.log("Attempting to send email to:", user.email);
+    console.log("Using sender email:", SENDER_EMAIL);
 
-    if (emailResponse.error) {
-      console.error("Resend error:", emailResponse.error);
-      return NextResponse.json(
-        { error: "Failed to send email", details: emailResponse.error },
-        { status: 500 }
-      );
-    }
+    // Send email using Brevo
+    const emailResponse = await brevo.sendTransacEmail({
+      sender: {
+        email: SENDER_EMAIL,
+        name: "LGW Warehouse",
+      },
+      to: [
+        {
+          email: user.email,
+          name: user.name,
+        },
+      ],
+      subject: subject,
+      htmlContent: emailContent,
+      textContent: generatePlainTextContent(user, tempPassword, isResend),
+    });
 
     return NextResponse.json(
       {
         success: true,
         message: `Welcome email sent successfully to ${user.email}`,
-        emailId: emailResponse.data?.id,
+        emailId: emailResponse.body.messageId,
       },
       { status: 200 }
     );
   } catch (error) {
     console.error("Send welcome email error:", error);
+    
+    // Log more detailed error information
+    if (error && typeof error === 'object') {
+      console.error("Error details:", JSON.stringify(error, null, 2));
+    }
+    
     return NextResponse.json(
       {
-        error: "Internal server error",
+        error: "Failed to send email",
         details: error instanceof Error ? error.message : "Unknown error",
+        fullError: error && typeof error === 'object' ? JSON.stringify(error) : String(error),
       },
       { status: 500 }
     );
