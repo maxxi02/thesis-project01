@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -403,70 +403,150 @@ export default function Delivery() {
   const sseConnectionRef = useRef<EventSource | null>(null);
   const [archivedCount, setArchivedCount] = useState(0);
 
-  const setupSSEConnection = (userId: string, userEmail: string) => {
-    if (sseConnectionRef.current) {
-      sseConnectionRef.current.close();
-    }
-    const connection = new EventSource(
-      `/api/sse?userId=${userId}&userEmail=${encodeURIComponent(userEmail)}`
-    );
-    sseConnectionRef.current = connection;
+  const setupSSEConnection = useCallback(
+    (userId: string, userEmail: string) => {
+      if (sseConnectionRef.current) {
+        console.log("🔌 Closing existing SSE connection");
+        sseConnectionRef.current.close();
+      }
 
-    connection.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        switch (data.type) {
-          case "DELIVERY_STATUS_UPDATE":
-            if (userSession?.user.email) {
-              fetchAssignments(userSession.user.email);
-            }
-            break;
-          case "NEW_ASSIGNMENT":
-            try {
+      console.log("🔌 Setting up new SSE connection");
+      const connection = new EventSource(
+        `/api/sse?userId=${userId}&userEmail=${encodeURIComponent(userEmail)}`
+      );
+      sseConnectionRef.current = connection;
+
+      connection.onopen = () => {
+        console.log("✅ SSE Connection opened successfully");
+      };
+
+      connection.onmessage = (event) => {
+        console.log("📨 SSE Message received:", event.data);
+
+        try {
+          const data = JSON.parse(event.data);
+          console.log("📦 Parsed data:", data);
+
+          switch (data.type) {
+            case "CONNECTION_ESTABLISHED":
+              console.log("✅ SSE Connection established");
+              break;
+
+            case "heartbeat":
+              console.log("💓 Heartbeat received");
+              break;
+
+            case "DELIVERY_STATUS_UPDATE":
+              console.log("🔔 Playing status update sound");
+
+              // PLAY SOUND HERE
+              const statusAudio = new Audio("/notification-sound.mp3");
+              statusAudio
+                .play()
+                .catch((err) => console.error("Audio play failed:", err));
+
+              NotificationHelper.triggerNotification({
+                sound: true,
+                vibration: false,
+                respectAudioSettings: true,
+                type: "status",
+              });
+
+              toast.info("Delivery Status Updated", {
+                description: `Delivery #${data.data.assignmentId.slice(
+                  -6
+                )} is now ${data.data.newStatus.toUpperCase()}`,
+              });
+
+              // Refresh assignments when status updates
+              if (userSession?.user.email) {
+                fetchAssignments(userSession.user.email);
+              }
+              break;
+
+            case "SHIPMENT_DELIVERED":
+              console.log("🎉 Playing delivery complete sound");
+
+              // PLAY SOUND HERE
+              const deliveryAudio = new Audio("/success-sound.mp3");
+              deliveryAudio
+                .play()
+                .catch((err) => console.error("Audio play failed:", err));
+
               NotificationHelper.triggerNotification({
                 sound: true,
                 vibration: true,
                 respectAudioSettings: true,
-                type: "assignment",
+                type: "completion",
               });
-            } catch (notifError) {
-              console.warn("Notification failed:", notifError);
-            }
 
-            toast.info("New Delivery Assignment", {
-              description: `You have been assigned to deliver ${data.data.productName}`,
-            });
-
-            if (userSession?.user.email) {
-              fetchAssignments(userSession.user.email);
-            }
-
-            // Only set map location if coordinates are valid
-            if (data.data.coordinates?.lat && data.data.coordinates?.lng) {
-              // Don't automatically open the map, let user decide
-              setSelectedMapLocation({
-                id: data.data.assignmentId,
-                lat: data.data.coordinates.lat,
-                lng: data.data.coordinates.lng,
-                name: data.data.productName,
-                address: data.data.destination,
+              toast.success("Delivery Completed! 🎉", {
+                description: `${data.data.productName} has been successfully delivered`,
               });
-            }
-            break;
-        }
-      } catch (error) {
-        console.error("Error parsing SSE data:", error);
-      }
-    };
 
-    connection.onerror = () => {
-      setTimeout(() => {
-        if (userSession) {
-          setupSSEConnection(userId, userEmail);
+              // Refresh assignments when delivery is completed
+              if (userSession?.user.email) {
+                fetchAssignments(userSession.user.email);
+              }
+              break;
+
+            case "NEW_ASSIGNMENT":
+              console.log("📦 New assignment received");
+
+              try {
+                NotificationHelper.triggerNotification({
+                  sound: true,
+                  vibration: true,
+                  respectAudioSettings: true,
+                  type: "assignment",
+                });
+              } catch (notifError) {
+                console.warn("Notification failed:", notifError);
+              }
+
+              toast.info("New Delivery Assignment", {
+                description: `You have been assigned to deliver ${data.data.productName}`,
+              });
+
+              // Refresh assignments when new assignment is received
+              if (userSession?.user.email) {
+                fetchAssignments(userSession.user.email);
+              }
+
+              // Only set map location if coordinates are valid
+              if (data.data.coordinates?.lat && data.data.coordinates?.lng) {
+                setSelectedMapLocation({
+                  id: data.data.assignmentId,
+                  lat: data.data.coordinates.lat,
+                  lng: data.data.coordinates.lng,
+                  name: data.data.productName,
+                  address: data.data.destination,
+                });
+              }
+              break;
+          }
+        } catch (error) {
+          console.error("❌ Error parsing SSE data:", error);
         }
-      }, 5000);
-    };
-  };
+      };
+
+      connection.onerror = (error) => {
+        console.error("❌ SSE Error:", error);
+        console.log("SSE ReadyState:", connection.readyState);
+
+        // Only reconnect if the connection was working before
+        if (connection.readyState === EventSource.CLOSED) {
+          console.log("🔄 Connection closed, will reconnect in 5s...");
+          setTimeout(() => {
+            if (userSession) {
+              setupSSEConnection(userSession.user.id, userSession.user.email);
+            }
+          }, 5000);
+        }
+      };
+    },
+    [userSession]
+  );
 
   useEffect(() => {
     if (userSession?.user) {
@@ -477,7 +557,7 @@ export default function Delivery() {
         sseConnectionRef.current.close();
       }
     };
-  }, [userSession]);
+  }, [userSession, setupSSEConnection]);
 
   useEffect(() => {
     const fetchSession = async () => {

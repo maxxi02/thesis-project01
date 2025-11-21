@@ -45,6 +45,7 @@ export const auth = betterAuth({
       ? process.env.NEXT_PUBLIC_URL!
       : process.env.BETTER_AUTH_URL!,
     process.env.NEXT_PUBLIC_URL || "https://www.lgwhardware.online",
+    "http://192.168.1.144:3000",
   ],
   appName: "LGW Warehouse",
   rateLimit: {
@@ -94,7 +95,9 @@ export const auth = betterAuth({
           </body>
           </html>
         `,
-        textContent: `Reset Your Password\n\nHello${user.name ? ` ${user.name}` : ""},\n\nYou requested to reset your password for your LGW Warehouse account.\n\nClick the link below to reset your password:\n${url}\n\nIf you didn't request this, you can safely ignore this email.`,
+        textContent: `Reset Your Password\n\nHello${
+          user.name ? ` ${user.name}` : ""
+        },\n\nYou requested to reset your password for your LGW Warehouse account.\n\nClick the link below to reset your password:\n${url}\n\nIf you didn't request this, you can safely ignore this email.`,
         sender: {
           email: process.env.BREVO_SENDER_EMAIL!,
           name: process.env.BREVO_SENDER_NAME || "LGW Warehouse",
@@ -130,7 +133,9 @@ export const auth = betterAuth({
           </body>
           </html>
         `,
-        textContent: `Verify Your Email Address\n\nHello${user.name ? ` ${user.name}` : ""},\n\nWelcome to LGW Warehouse! Please verify your email address to complete your registration.\n\nClick the link below:\n${url}\n\nIf you didn't create an account, you can safely ignore this email.`,
+        textContent: `Verify Your Email Address\n\nHello${
+          user.name ? ` ${user.name}` : ""
+        },\n\nWelcome to LGW Warehouse! Please verify your email address to complete your registration.\n\nClick the link below:\n${url}\n\nIf you didn't create an account, you can safely ignore this email.`,
         sender: {
           email: process.env.BREVO_SENDER_EMAIL!,
           name: process.env.BREVO_SENDER_NAME || "LGW Warehouse",
@@ -168,7 +173,9 @@ export const auth = betterAuth({
             </body>
             </html>
           `,
-          textContent: `Approve Email Change\n\nHello${user.name ? ` ${user.name}` : ""},\n\nYou requested to change your email address for your LGW Warehouse account.\n\nClick the link below to approve this change:\n${url}\n\nIf you didn't request this change, please contact support immediately.`,
+          textContent: `Approve Email Change\n\nHello${
+            user.name ? ` ${user.name}` : ""
+          },\n\nYou requested to change your email address for your LGW Warehouse account.\n\nClick the link below to approve this change:\n${url}\n\nIf you didn't request this change, please contact support immediately.`,
           sender: {
             email: process.env.BREVO_SENDER_EMAIL!,
             name: process.env.BREVO_SENDER_NAME || "LGW Warehouse",
@@ -215,7 +222,9 @@ export const auth = betterAuth({
               </body>
               </html>
             `,
-            textContent: `Two-Factor Authentication\n\nHello${user.name ? ` ${user.name}` : ""},\n\nYour verification code for LGW Warehouse is:\n\n${otp}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this code, please secure your account immediately.`,
+            textContent: `Two-Factor Authentication\n\nHello${
+              user.name ? ` ${user.name}` : ""
+            },\n\nYour verification code for LGW Warehouse is:\n\n${otp}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this code, please secure your account immediately.`,
             sender: {
               email: process.env.BREVO_SENDER_EMAIL!,
               name: process.env.BREVO_SENDER_NAME || "LGW Warehouse",

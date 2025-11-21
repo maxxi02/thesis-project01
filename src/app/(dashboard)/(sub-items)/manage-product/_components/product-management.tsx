@@ -185,59 +185,58 @@ export default function ProductManagement() {
       reader.readAsDataURL(file);
     }
   };
-  // useEffect(() => {
-  //   const loadLocations = async () => {
-  //     // Don't fetch if already loaded or currently loading
-  //     if (apiLocations.length > 0 || loading) return;
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        setLoading(true);
+        console.log("📍 Fetching locations...");
 
-  //     try {
-  //       setLoading(true);
-  //       console.log("📍 Fetching locations...");
+        const response = await fetch(
+          "/api/locations/batangas?allCities=true&coordinates=true"
+        );
 
-  //       const response = await fetch(
-  //         "/api/locations/batangas?allCities=true&coordinates=true"
-  //       );
+        console.log("Response status:", response.status);
+        console.log("Response ok:", response.ok);
 
-  //       console.log("Response status:", response.status);
-  //       console.log("Response ok:", response.ok);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("❌ API Error:", errorText);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-  //       if (!response.ok) {
-  //         const errorText = await response.text();
-  //         console.error("❌ API Error:", errorText);
-  //         throw new Error(`HTTP error! status: ${response.status}`);
-  //       }
+        const data = await response.json();
+        console.log("✅ API Response:", {
+          success: data.success,
+          count: data.count,
+          hasLocations: !!data.locations,
+          locationsLength: data.locations?.length,
+        });
 
-  //       const data = await response.json();
-  //       console.log("✅ API Response:", {
-  //         success: data.success,
-  //         count: data.count,
-  //         hasLocations: !!data.locations,
-  //         locationsLength: data.locations?.length,
-  //       });
+        if (data.success && data.locations?.length > 0) {
+          setApiLocations(data.locations);
+          console.log(`✅ Loaded ${data.count} locations`);
+        } else {
+          console.warn("⚠️ No locations in response:", data);
+          setApiLocations([]);
+          toast.error("No locations available");
+        }
+      } catch (error) {
+        console.error("❌ Failed to fetch locations:", error);
+        setApiLocations([]);
+        toast.error(
+          `Failed to load locations: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  //       if (data.success && data.locations?.length > 0) {
-  //         setApiLocations(data.locations);
-  //         console.log(`✅ Loaded ${data.count} locations`);
-  //       } else {
-  //         console.warn("⚠️ No locations in response:", data);
-  //         toast.error("No locations available");
-  //       }
-  //     } catch (error) {
-  //       console.error("❌ Failed to fetch locations:", error);
-  //       toast.error(
-  //         `Failed to load locations: ${
-  //           error instanceof Error ? error.message : "Unknown error"
-  //         }`
-  //       );
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   if (mounted) {
-  //     loadLocations();
-  //   }
-  // }, [mounted, apiLocations.length, loading]); // Added dependencies
+    if (mounted) {
+      loadLocations();
+    }
+  }, [mounted]);
 
   // Filter products based on search term
   const filteredProducts = products.filter(
@@ -557,7 +556,7 @@ export default function ProductManagement() {
       setLoading(false);
     }
   };
-  const handleShip = async (product: Product) => {
+  const handleShip = (product: Product) => {
     setSelectedProduct(product);
     setShipmentData({
       quantity: "",
@@ -567,32 +566,6 @@ export default function ProductManagement() {
       estimatedDelivery: "",
     });
     setShowShipModal(true);
-
-    // Load locations if not already loaded
-    if (apiLocations.length === 0) {
-      try {
-        setLoading(true);
-        const response = await fetch(
-          "/api/locations/batangas?allCities=true&coordinates=true"
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.success && data.locations?.length > 0) {
-          setApiLocations(data.locations);
-        } else {
-          toast.error("No locations available");
-        }
-      } catch (error) {
-        console.error("Failed to fetch locations:", error);
-        toast.error("Failed to load locations");
-      } finally {
-        setLoading(false);
-      }
-    }
   };
 
   const confirmShipment = async () => {
