@@ -8,7 +8,7 @@ import {
   Popup,
 } from "react-leaflet";
 import { Icon, type LatLngLiteral } from "leaflet";
-import "leaflet/dist/leaflet.css";
+// import "leaflet/dist/leaflet.css";
 import type React from "react";
 import { useState, useEffect, useRef } from "react";
 import type { Map as LeafletMap } from "leaflet";
