@@ -50,6 +50,7 @@ const DeliveryMap = dynamic(() => import("./delivery-map"), {
     </div>
   ),
 });
+
 interface DeliveryAssignment {
   id: string;
   product: {

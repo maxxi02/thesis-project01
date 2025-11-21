@@ -8,7 +8,6 @@ import {
   Popup,
 } from "react-leaflet";
 import { Icon, type LatLngLiteral } from "leaflet";
-// import "leaflet/dist/leaflet.css";
 import type React from "react";
 import { useState, useEffect, useRef } from "react";
 import type { Map as LeafletMap } from "leaflet";
@@ -438,13 +437,12 @@ const DeliveryMap: React.FC<MapProps> = ({
         }}
       >
         <MapContainer
-          ref={mapRef}
-          center={
-            selectedLocation?.lat && selectedLocation?.lng
-              ? { lat: selectedLocation.lat, lng: selectedLocation.lng }
-              : center?.lat && center?.lng
-              ? { lat: center.lat, lng: center.lng }
-              : { lat: 13.7565, lng: 121.0584 } // Default Batangas City coordinates
+  center={
+    selectedLocation?.lat && selectedLocation?.lng
+      ? { lat: selectedLocation.lat, lng: selectedLocation.lng }
+      : center?.lat && center?.lng
+      ? center
+      : { lat: 13.7565, lng: 121.0584 }
           }
           zoom={13}
           minZoom={5}
