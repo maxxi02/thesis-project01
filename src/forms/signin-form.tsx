@@ -52,6 +52,14 @@ const formSchema = z.object({
     }),
 });
 
+// Rate limit configuration
+const RATE_LIMIT_WINDOW =
+  process.env.NODE_ENV === "production"
+    ? 15 * 60 // 15 minutes in production
+    : 1 * 60; // 1 minute in development
+
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+
 export function SigninForm({
   className,
   ...props
@@ -93,22 +101,37 @@ export function SigninForm({
     }
   }, [countdown]);
 
+  // Helper function to format retry time
+  const formatRetryTime = (seconds: number) => {
+    if (seconds >= 60) {
+      const minutes = Math.ceil(seconds / 60);
+      return `${minutes} minute${minutes > 1 ? "s" : ""}`;
+    }
+    return `${seconds} second${seconds > 1 ? "s" : ""}`;
+  };
+
   async function onSubmit(values: z.infer<typeof signInSchema>) {
     try {
       const { email, password } = values;
 
       // Check email-based rate limit before attempting sign-in
       const rateLimitKey = `email-signin:${email}`;
-      const rateLimitCheck = await fetch('/api/check-rate-limit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: rateLimitKey, window: 60, max: 5 }),
+      const rateLimitCheck = await fetch("/api/check-rate-limit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: rateLimitKey,
+          window: RATE_LIMIT_WINDOW,
+          max: RATE_LIMIT_MAX_ATTEMPTS,
+        }),
       });
 
       if (!rateLimitCheck.ok) {
         const data = await rateLimitCheck.json();
         toast.error("Too Many Attempts", {
-          description: `Too many login attempts for this email. Please try again in ${data.retryAfter} seconds.`,
+          description: `Too many login attempts for this email. Please try again in ${formatRetryTime(
+            data.retryAfter
+          )}.`,
           richColors: true,
         });
         return;
@@ -119,9 +142,9 @@ export function SigninForm({
         {
           onSuccess: async (ctx) => {
             // Clear rate limit on successful login
-            await fetch('/api/clear-rate-limit', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            await fetch("/api/clear-rate-limit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ key: rateLimitKey }),
             });
 
@@ -134,11 +157,20 @@ export function SigninForm({
           },
           onError: async (ctx) => {
             // Increment rate limit on failed login
-            await fetch('/api/increment-rate-limit', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            await fetch("/api/increment-rate-limit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ key: rateLimitKey }),
             });
+
+            if (ctx.error.status === 403) {
+              toast.error("Please verify your email address");
+              await authClient.sendVerificationEmail({
+                email: email,
+                callbackURL: "/sign-in",
+              });
+              toast.success("Verification email sent!");
+            }
 
             if (ctx.error.status === 429) {
               toast.error("Too Many Attempts", {
@@ -402,8 +434,8 @@ export function SigninForm({
                       {isResending
                         ? "Sending..."
                         : countdown > 0
-                          ? `Resend code in ${countdown}s`
-                          : "Resend verification code"}
+                        ? `Resend code in ${countdown}s`
+                        : "Resend verification code"}
                     </Button>
                   </div>
                 )}
