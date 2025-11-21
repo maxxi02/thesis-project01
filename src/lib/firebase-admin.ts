@@ -2,28 +2,30 @@ import admin from "firebase-admin";
 
 let isInitialized = false;
 
-// Lazy initialization - only runs when actually needed (at runtime, not build time)
+// Lazy initialization - only runs when actually needed (at runtime)
 function initializeFirebase() {
-  // If already initialized, skip
-  if (isInitialized || admin.apps.length > 0) {
-    isInitialized = true;
+  if (isInitialized) {
     return;
   }
 
-  // Skip during build time - don't throw errors
+  // Skip during build time
   if (!process.env.FIREBASE_PROJECT_ID) {
-    console.warn(
-      "Firebase credentials not available during build - skipping initialization"
-    );
+    console.warn("Firebase credentials not available - skipping initialization");
     return;
   }
 
-  // Now validate at runtime
+  // Validate required fields
   if (!process.env.FIREBASE_PRIVATE_KEY) {
     throw new Error("FIREBASE_PRIVATE_KEY is required");
   }
   if (!process.env.FIREBASE_CLIENT_EMAIL) {
     throw new Error("FIREBASE_CLIENT_EMAIL is required");
+  }
+
+  // Check if already initialized
+  if (admin.apps.length > 0) {
+    isInitialized = true;
+    return;
   }
 
   try {
@@ -41,9 +43,9 @@ function initializeFirebase() {
     });
 
     isInitialized = true;
-    console.log("✅ Firebase Admin initialized successfully");
+    console.log("Firebase Admin initialized successfully");
   } catch (error) {
-    console.error("❌ Failed to initialize Firebase Admin:", error);
+    console.error("Failed to initialize Firebase Admin:", error);
     throw error;
   }
 }
@@ -57,15 +59,15 @@ export async function sendNotificationToDriver(
     estimatedDelivery?: Date;
   }
 ) {
-  // Initialize Firebase when this function is actually called (runtime only)
-  initializeFirebase();
-
-  if (!isInitialized) {
-    console.warn("Firebase not initialized - skipping notification");
-    return null;
-  }
-
   try {
+    // Initialize Firebase only when this function is called (runtime)
+    initializeFirebase();
+
+    if (!isInitialized) {
+      console.warn("Firebase not initialized - skipping notification");
+      return null;
+    }
+
     if (!fcmToken) {
       console.warn("No FCM token provided for driver");
       return null;
