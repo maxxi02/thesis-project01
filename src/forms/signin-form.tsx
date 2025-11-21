@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/input-otp";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 
+// Define the signin schema directly here
 const signInSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   password: z
@@ -114,7 +115,7 @@ export function SigninForm({
       }
 
       await authClient.signIn.email(
-        { email, password, callbackURL: "/dashboard" },
+        { email, password },
         {
           onSuccess: async (ctx) => {
             // Clear rate limit on successful login
@@ -126,11 +127,8 @@ export function SigninForm({
 
             if (ctx.data.twoFactorRedirect) {
               setEmail(email);
-              await authClient.twoFactor.sendOtp();
-              toast.success("Two-factor authentication code sent to your email");
               setShow2FAModal(true);
             } else {
-              toast.success("Successfully signed in!");
               router.push("/dashboard");
             }
           },
@@ -142,43 +140,14 @@ export function SigninForm({
               body: JSON.stringify({ key: rateLimitKey }),
             });
 
-            console.error("Sign in error:", ctx.error.message);
-            const errorMessage =
-              ctx.error.message ||
-              "Sign in failed. Please check your credentials.";
-
-            if (ctx.error.status === 403) {
-              try {
-                // Try to send verification email with the email from the form
-                const verificationResult = await authClient.sendVerificationEmail({
-                  email: email,
-                  callbackURL: `${window.location.origin}/login`,
-                });
-                
-                if (verificationResult.error) {
-                  throw verificationResult.error;
-                }
-                
-                toast.info("Email Verification Required", {
-                  description: "Your email is not verified. We've sent a verification link to your email address. Please check your inbox.",
-                  richColors: true,
-                  duration: 5000,
-                });
-              } catch (verifyError) {
-                console.error("Failed to send verification email:", verifyError);
-                toast.error("Email Verification Required", {
-                  description: "Your email is not verified. Please contact support for assistance.",
-                  richColors: true,
-                });
-              }
-            } else if (ctx.error.status === 429) {
+            if (ctx.error.status === 429) {
               toast.error("Too Many Attempts", {
                 description: "Too many login attempts. Please try again later.",
                 richColors: true,
               });
             } else {
               toast.error("Error", {
-                description: errorMessage,
+                description: ctx.error.message || "Error logging in",
                 richColors: true,
               });
             }
@@ -288,7 +257,7 @@ export function SigninForm({
         </p>
       </div>
       <Form {...form}>
-        <div onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6">
           <FormField
             control={form.control}
             name="email"
@@ -327,19 +296,14 @@ export function SigninForm({
               </FormItem>
             )}
           />
-          <Button 
-            type="button" 
-            disabled={isSubmitting} 
-            className="w-full"
-            onClick={form.handleSubmit(onSubmit)}
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? (
               <Loader2 className="animate-spin mx-auto" />
             ) : (
               "Login"
             )}
           </Button>
-        </div>
+        </form>
       </Form>
       {/* 2FA Dialog */}
       <Dialog open={show2FAModal} onOpenChange={setShow2FAModal}>
@@ -366,7 +330,7 @@ export function SigninForm({
             ) : (
               <>
                 <Form {...verificationForm}>
-                  <div
+                  <form
                     onSubmit={verificationForm.handleSubmit(handleVerifyCode)}
                     className="space-y-4"
                   >
@@ -405,10 +369,9 @@ export function SigninForm({
                     <DialogFooter className="">
                       <div className="flex flex-col items-center w-full gap-4">
                         <Button
-                          type="button"
+                          type="submit"
                           className="w-full"
                           disabled={isVerifying}
-                          onClick={verificationForm.handleSubmit(handleVerifyCode)}
                         >
                           {isVerifying ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -426,7 +389,7 @@ export function SigninForm({
                         </Button>
                       </div>
                     </DialogFooter>
-                  </div>
+                  </form>
                 </Form>
                 {currentMethod === "otp" && (
                   <div className="text-center">
