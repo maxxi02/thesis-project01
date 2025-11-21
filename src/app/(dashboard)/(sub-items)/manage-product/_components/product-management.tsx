@@ -588,6 +588,10 @@ const loadLocations = async () => {
           addr.fullAddress === shipmentData.destination
       );
 
+    // ✅ Log to debug
+    console.log('Selected Address:', selectedAddress);
+    console.log('Has coordinates:', selectedAddress?.coordinates);
+
       const response = await fetch(
         `/api/products/${selectedProduct._id}/to-ship`,
         {
@@ -602,7 +606,7 @@ const loadLocations = async () => {
               fcmToken: driver.fcmToken,
             },
             destination: shipmentData.destination,
-            // coordinates: selectedAddress?.coordinates || null,
+            coordinates: selectedAddress?.coordinates || null,
             note: shipmentData.note,
             estimatedDelivery: shipmentData.estimatedDelivery || null,
             markedBy: {
@@ -653,7 +657,7 @@ const loadLocations = async () => {
             },
             customerAddress: {
               destination: shipmentData.destination,
-              // coordinates: selectedAddress?.coordinates || null,
+              coordinates: selectedAddress?.coordinates || null,
             },
             deliveryPersonnel: {
               id: driver.id,

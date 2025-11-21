@@ -1,16 +1,13 @@
 "use client";
-import {
-  MapContainer,
-  Marker,
-  TileLayer,
-  useMap,
-  ZoomControl,
-  Popup,
-} from "react-leaflet";
-import { Icon, type LatLngLiteral } from "leaflet";
-import type React from "react";
-import { useState, useEffect, useRef } from "react";
-import type { Map as LeafletMap } from "leaflet";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import Map, { Marker, Popup, NavigationControl, MapRef } from "react-map-gl/maplibre";
+import type { StyleSpecification } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+
+type LatLngLiteral = {
+  lat: number;
+  lng: number;
+};
 
 type MapLocation = LatLngLiteral & {
   id: string;
@@ -41,133 +38,171 @@ type SearchSuggestion = {
   };
 };
 
-const SelectedLocation = ({
-  center,
-  zoom = 15,
-}: {
-  center: LatLngLiteral;
-  zoom?: number;
-}) => {
-  const map = useMap();
-
-  useEffect(() => {
-    // Add validation and wait for map to be ready
-    if (!map || !center?.lat || !center?.lng) return;
-
-    // Wait for map to be fully initialized
-    const timeoutId = setTimeout(() => {
-      try {
-        if (map.getCenter()) {
-          // Check if map has a center (is initialized)
-          map.setView(center, zoom, { animate: true });
-        }
-      } catch (error) {
-        console.warn("Map not ready for setView:", error);
-      }
-    }, 100);
-
-    return () => clearTimeout(timeoutId);
-  }, [center, zoom, map]);
-
-  return null;
-};
-
 const DeliveryMap: React.FC<MapProps> = ({
   center,
   locations,
   selectedLocationId,
 }) => {
-  const mapRef = useRef<LeafletMap | null>(null);
+  const mapRef = useRef<MapRef>(null);
   const [mapType, setMapType] = useState<MapType>("roadmap");
-  const [selectedLocation, setSelectedLocation] = useState<
-    MapLocation | undefined
-  >();
+  const [selectedLocation, setSelectedLocation] = useState<MapLocation | undefined>();
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [streetViewUrl, setStreetViewUrl] = useState<string>("");
   const [showStreetView, setShowStreetView] = useState<boolean>(false);
+  const [popupInfo, setPopupInfo] = useState<MapLocation | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      mapRef.current?.invalidateSize();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
+  const getValidCoordinates = (coords: LatLngLiteral | undefined) => {
+    if (!coords || typeof coords.lat !== 'number' || typeof coords.lng !== 'number') {
+      return { lat: 13.7565, lng: 121.0584 }; // Default to Batangas
+    }
+    return coords;
+  };
+
+  const validCenter = getValidCoordinates(center);
+
+  const [viewState, setViewState] = useState({
+    longitude: validCenter.lng,
+    latitude: validCenter.lat,
+    zoom: 13,
+  });
 
   useEffect(() => {
     if (selectedLocationId) {
       const location = locations.find((l) => l.id === selectedLocationId);
       if (location) {
         setSelectedLocation(location);
+        setViewState({
+          longitude: location.lng,
+          latitude: location.lat,
+          zoom: 15,
+        });
       }
     }
   }, [selectedLocationId, locations]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        mapRef.current?.invalidateSize();
-      } catch (error) {
-        console.warn("Map invalidateSize failed:", error);
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
+    if (selectedLocation?.lat && selectedLocation?.lng) {
+      setViewState({
+        longitude: selectedLocation.lng,
+        latitude: selectedLocation.lat,
+        zoom: 15,
+      });
+    }
+  }, [selectedLocation]);
 
-  const getMarkerIcon = (location: MapLocation, isSelected: boolean) => {
-    const getColor = () => {
-      if (isSelected) return "#EF4444";
-      switch (location.status) {
-        case "pending":
-          return "#F59E0B";
-        case "in-transit":
-          return "#3B82F6";
-        case "delivered":
-          return "#10B981";
-        default:
-          return "#6B7280";
-      }
+  const getMapStyle = useCallback((): StyleSpecification => {
+    const mapStyles: Record<MapType, StyleSpecification> = {
+      roadmap: {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "&copy; OpenStreetMap Contributors",
+            maxzoom: 19,
+          },
+        },
+        layers: [
+          {
+            id: "osm",
+            type: "raster",
+            source: "osm",
+            minzoom: 0,
+            maxzoom: 22,
+          },
+        ],
+      },
+      satellite: {
+        version: 8,
+        sources: {
+          satellite: {
+            type: "raster",
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            ],
+            tileSize: 256,
+            attribution: "Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+            maxzoom: 19,
+          },
+        },
+        layers: [
+          {
+            id: "satellite",
+            type: "raster",
+            source: "satellite",
+            minzoom: 0,
+            maxzoom: 22,
+          },
+        ],
+      },
+      hybrid: {
+        version: 8,
+        sources: {
+          satellite: {
+            type: "raster",
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            ],
+            tileSize: 256,
+            maxzoom: 19,
+          },
+          labels: {
+            type: "raster",
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+            ],
+            tileSize: 256,
+            maxzoom: 19,
+          },
+        },
+        layers: [
+          {
+            id: "satellite",
+            type: "raster",
+            source: "satellite",
+            minzoom: 0,
+            maxzoom: 22,
+          },
+          {
+            id: "labels",
+            type: "raster",
+            source: "labels",
+            minzoom: 0,
+            maxzoom: 22,
+          },
+        ],
+      },
+      terrain: {
+        version: 8,
+        sources: {
+          terrain: {
+            type: "raster",
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}",
+            ],
+            tileSize: 256,
+            attribution: "Esri, USGS, NOAA",
+            maxzoom: 13,
+          },
+        },
+        layers: [
+          {
+            id: "terrain",
+            type: "raster",
+            source: "terrain",
+            minzoom: 0,
+            maxzoom: 22,
+          },
+        ],
+      },
     };
-
-    return new Icon({
-      iconUrl:
-        "data:image/svg+xml;base64," +
-        btoa(`
-        <svg width="${isSelected ? "30" : "25"}" height="${
-          isSelected ? "49" : "41"
-        }" viewBox="0 0 ${isSelected ? "30" : "25"} ${
-          isSelected ? "49" : "41"
-        }" xmlns="http://www.w3.org/2000/svg">
-          <path d="${
-            isSelected
-              ? "M15 0C6.716 0 0 6.716 0 15c0 15 15 34 15 34s15-19 15-34C30 6.716 23.284 0 15 0z"
-              : "M12.5 0C5.596 0 0 5.596 0 12.5c0 12.5 12.5 28.5 12.5 28.5s12.5-16 12.5-28.5C25 5.596 19.404 0 12.5 0z"
-          }" fill="${getColor()}"/>
-          <circle cx="${isSelected ? "15" : "12.5"}" cy="${
-          isSelected ? "15" : "12.5"
-        }" r="${isSelected ? "6" : "5"}" fill="white"/>
-        </svg>
-      `),
-      iconSize: isSelected ? [30, 49] : [25, 41],
-      iconAnchor: isSelected ? [15, 49] : [12, 41],
-    });
-  };
-
-  const getUrl = () => {
-    const mapTypeUrls: Record<MapType, string> = {
-      roadmap: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      satellite:
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      hybrid:
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-      terrain:
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}",
-    };
-    return mapTypeUrls[mapType];
-  };
+    return mapStyles[mapType];
+  }, [mapType]);
 
   const searchLocations = async (query: string) => {
     if (query.length < 3) {
@@ -177,9 +212,7 @@ const DeliveryMap: React.FC<MapProps> = ({
     setIsLoading(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=10&countrycodes=ph&q=${encodeURIComponent(
-          query
-        )}`
+        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=10&countrycodes=ph&q=${encodeURIComponent(query)}`
       );
       const data = await response.json();
       setSuggestions(data);
@@ -214,8 +247,8 @@ const DeliveryMap: React.FC<MapProps> = ({
   const handleSuggestionClick = (suggestion: SearchSuggestion) => {
     const newLocation: MapLocation = {
       id: suggestion.place_id,
-      lat: Number.parseFloat(suggestion.lat),
-      lng: Number.parseFloat(suggestion.lon),
+      lat: parseFloat(suggestion.lat),
+      lng: parseFloat(suggestion.lon),
       name: suggestion.display_name,
       address: suggestion.display_name,
     };
@@ -230,81 +263,23 @@ const DeliveryMap: React.FC<MapProps> = ({
     setShowStreetView(true);
   };
 
-  const renderMarks = () => {
-    // Filter to show only in-transit deliveries
-    const activeLocations = locations.filter(
-      (location) => location.status === "in-transit"
-    );
-
-    return activeLocations.map((location) => (
-      <Marker
-        key={location.id}
-        icon={getMarkerIcon(
-          location,
-          location.id === selectedLocation?.id ||
-            location.id === selectedLocationId
-        )}
-        position={{ lat: location.lat, lng: location.lng }}
-        eventHandlers={{
-          click: () => {
-            setSelectedLocation(location);
-          },
-        }}
-      >
-        <Popup>
-          <div style={{ minWidth: "200px" }}>
-            <h3
-              style={{
-                margin: "0 0 8px 0",
-                fontSize: "14px",
-                fontWeight: "bold",
-              }}
-            >
-              {location.name || `Location ${location.id}`}
-            </h3>
-            {location.status && (
-              <div style={{ margin: "0 0 8px 0", fontSize: "12px" }}>
-                <span
-                  style={{
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    backgroundColor: "#DBEAFE",
-                    color: "#1E40AF",
-                  }}
-                >
-                  IN TRANSIT
-                </span>
-              </div>
-            )}
-            {location.address && (
-              <p
-                style={{ margin: "0 0 8px 0", fontSize: "12px", color: "#666" }}
-              >
-                {location.address}
-              </p>
-            )}
-            <p style={{ margin: "0 0 8px 0", fontSize: "12px" }}>
-              Lat: {location.lat.toFixed(6)}, Lng: {location.lng.toFixed(6)}
-            </p>
-            <button
-              onClick={() => openStreetView(location)}
-              style={{
-                padding: "4px 8px",
-                backgroundColor: "#3B82F6",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                fontSize: "12px",
-                cursor: "pointer",
-              }}
-            >
-              Street View
-            </button>
-          </div>
-        </Popup>
-      </Marker>
-    ));
+  const getMarkerColor = (location: MapLocation, isSelected: boolean) => {
+    if (isSelected) return "#EF4444";
+    switch (location.status) {
+      case "pending":
+        return "#F59E0B";
+      case "in-transit":
+        return "#3B82F6";
+      case "delivered":
+        return "#10B981";
+      default:
+        return "#6B7280";
+    }
   };
+
+  const activeLocations = locations.filter(
+    (location) => location.status === "in-transit"
+  );
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -428,44 +403,129 @@ const DeliveryMap: React.FC<MapProps> = ({
         )}
       </div>
 
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          borderRadius: "0px",
-          overflow: "hidden",
-        }}
+      <Map
+        ref={mapRef}
+        {...viewState}
+        onMove={(evt) => setViewState(evt.viewState)}
+        mapStyle={getMapStyle()}
+        style={{ width: "100%", height: "100%" }}
+        minZoom={5}
+        maxZoom={20}
       >
-        <MapContainer
-  center={
-    selectedLocation?.lat && selectedLocation?.lng
-      ? { lat: selectedLocation.lat, lng: selectedLocation.lng }
-      : center?.lat && center?.lng
-      ? center
-      : { lat: 13.7565, lng: 121.0584 }
-          }
-          zoom={13}
-          minZoom={5}
-          zoomControl={false}
-          attributionControl={false}
-          style={{ width: "100%", height: "100%" }}
-        >
-          <TileLayer url={getUrl()} />
-          {(selectedLocation || selectedLocationId) &&
-            selectedLocation?.lat &&
-            selectedLocation?.lng && (
-              <SelectedLocation
-                center={{
-                  lat: selectedLocation.lat,
-                  lng: selectedLocation.lng,
+        {activeLocations.map((location) => {
+          const isSelected =
+            location.id === selectedLocation?.id ||
+            location.id === selectedLocationId;
+          const color = getMarkerColor(location, isSelected);
+
+          return (
+            <Marker
+              key={location.id}
+              longitude={location.lng}
+              latitude={location.lat}
+              anchor="bottom"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setPopupInfo(location);
+                setSelectedLocation(location);
+              }}
+            >
+              <div
+                style={{
+                  cursor: "pointer",
+                  transform: isSelected ? "scale(1.2)" : "scale(1)",
+                  transition: "transform 0.2s",
                 }}
-                zoom={15}
-              />
-            )}
-          {renderMarks()}
-          <ZoomControl position="bottomright" />
-        </MapContainer>
-      </div>
+              >
+                <svg
+                  width={isSelected ? "30" : "25"}
+                  height={isSelected ? "49" : "41"}
+                  viewBox={`0 0 ${isSelected ? "30" : "25"} ${isSelected ? "49" : "41"}`}
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d={
+                      isSelected
+                        ? "M15 0C6.716 0 0 6.716 0 15c0 15 15 34 15 34s15-19 15-34C30 6.716 23.284 0 15 0z"
+                        : "M12.5 0C5.596 0 0 5.596 0 12.5c0 12.5 12.5 28.5 12.5 28.5s12.5-16 12.5-28.5C25 5.596 19.404 0 12.5 0z"
+                    }
+                    fill={color}
+                  />
+                  <circle
+                    cx={isSelected ? "15" : "12.5"}
+                    cy={isSelected ? "15" : "12.5"}
+                    r={isSelected ? "6" : "5"}
+                    fill="white"
+                  />
+                </svg>
+              </div>
+            </Marker>
+          );
+        })}
+
+        {popupInfo && (
+          <Popup
+            longitude={popupInfo.lng}
+            latitude={popupInfo.lat}
+            anchor="bottom"
+            onClose={() => setPopupInfo(null)}
+            closeButton={true}
+            closeOnClick={false}
+          >
+            <div style={{ minWidth: "200px", padding: "8px" }}>
+              <h3
+                style={{
+                  margin: "0 0 8px 0",
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                }}
+              >
+                {popupInfo.name || `Location ${popupInfo.id}`}
+              </h3>
+              {popupInfo.status && (
+                <div style={{ margin: "0 0 8px 0", fontSize: "12px" }}>
+                  <span
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      backgroundColor: "#DBEAFE",
+                      color: "#1E40AF",
+                    }}
+                  >
+                    IN TRANSIT
+                  </span>
+                </div>
+              )}
+              {popupInfo.address && (
+                <p
+                  style={{ margin: "0 0 8px 0", fontSize: "12px", color: "#666" }}
+                >
+                  {popupInfo.address}
+                </p>
+              )}
+              <p style={{ margin: "0 0 8px 0", fontSize: "12px" }}>
+                Lat: {popupInfo.lat.toFixed(6)}, Lng: {popupInfo.lng.toFixed(6)}
+              </p>
+              <button
+                onClick={() => openStreetView(popupInfo)}
+                style={{
+                  padding: "4px 8px",
+                  backgroundColor: "#3B82F6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Street View
+              </button>
+            </div>
+          </Popup>
+        )}
+
+        <NavigationControl position="bottom-right" />
+      </Map>
 
       {showStreetView && (
         <div
