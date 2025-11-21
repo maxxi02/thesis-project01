@@ -1,12 +1,18 @@
 {
   "tfjsVersion": "1.7.4",
   "tmVersion": "2.4.10",
-  "grayscale": true,
-  "imageSize": 96,
   "packageVersion": "0.8.4-alpha2",
   "packageName": "@teachablemachine/image",
-  "timeStamp": "2025-10-20T13:12:25.892Z",
+  "timeStamp": "2025-11-21T19:47:02.892Z",
   "userMetadata": {},
-  "modelName": "Embedded Image",
-  "labels": ["Rojan Notorio", "Kevin Seruma", "Katrina Malabanan", "No Object"]
+  "modelName": "tm-my-image-model",
+  "labels": [
+    "Rojan Notorio",
+    "Classic Wooden Hammer",
+    "Orange Philip Screwdriver",
+    "Blue Flat Screwdriver",
+    "Blue Eco Bag",
+    "Athlene Creatine Powder"
+  ],
+  "imageSize": 224
 }

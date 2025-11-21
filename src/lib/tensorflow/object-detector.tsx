@@ -4,8 +4,6 @@ import * as tf from "@tensorflow/tfjs";
 import Webcam from "react-webcam";
 import { Button } from "@/components/ui/button";
 import { XCircle, Loader2, Camera } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import * as tmImage from "@teachablemachine/image";
 
 export interface DetectedObject {
@@ -17,8 +15,6 @@ interface ObjectDetectorProps {
   onDetection: (objects: DetectedObject[]) => void;
   isActive: boolean;
   onActivationChange: (active: boolean) => void;
-  autoCapture?: boolean;
-  captureThreshold?: number;
   confidenceThreshold?: number;
   modelUrl?: string;
   noObjectThreshold?: number;
@@ -28,20 +24,40 @@ const ObjectDetector = ({
   onDetection,
   isActive,
   onActivationChange,
-  autoCapture,
-  captureThreshold = 0.8,
   confidenceThreshold = 0.7,
   modelUrl = "/teachableModels/",
   noObjectThreshold = 0.7,
 }: ObjectDetectorProps) => {
   const webcamRef = useRef<Webcam>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [model, setModel] = useState<tmImage.CustomMobileNet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
   const detectionRef = useRef<NodeJS.Timeout | null>(null);
-  const [autoCloseEnabled, setAutoCloseEnabled] = useState(autoCapture);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const stableDetectionRef = useRef<string | null>(null);
+  const stableDetectionCount = useRef<number>(0);
 
-  // Memoize detect function to prevent unnecessary re-renders
+  const [isOnCooldown, setIsOnCooldown] = useState(false);
+  const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize audio for notification
+  useEffect(() => {
+    audioRef.current = new Audio(
+      "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjSD0fPTgjMGHm7A7+OZURE="
+    );
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Memoize detect function
   const detect = useCallback(async (): Promise<DetectedObject[] | null> => {
     if (!model || !webcamRef.current) return null;
     const video = webcamRef.current.video;
@@ -87,8 +103,63 @@ const ObjectDetector = ({
         clearInterval(detectionRef.current);
         detectionRef.current = null;
       }
+      if (countdownRef.current) {
+        clearTimeout(countdownRef.current);
+        countdownRef.current = null;
+      }
+      if (cooldownTimerRef.current) {
+        clearTimeout(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
     };
   }, [isActive, onActivationChange, modelUrl]);
+
+  // Auto-capture when stable object detected
+  const startCountdown = useCallback(() => {
+    if (isCapturing || isOnCooldown) return;
+
+    setIsCapturing(true);
+    setCountdown(3);
+
+    let count = 3;
+
+    const countdownInterval = setInterval(() => {
+      count--;
+      setCountdown(count);
+
+      if (count === 0) {
+        clearInterval(countdownInterval);
+
+        // Play sound and capture
+        if (audioRef.current) {
+          audioRef.current
+            .play()
+            .catch((err) => console.error("Audio play failed:", err));
+        }
+
+        if (
+          detectedObjects.length > 0 &&
+          detectedObjects[0].className !== "No Object"
+        ) {
+          onDetection(detectedObjects);
+        }
+
+        // Reset and start cooldown
+        setCountdown(null);
+        setIsCapturing(false);
+        setIsOnCooldown(true);
+        stableDetectionRef.current = null;
+        stableDetectionCount.current = 0;
+
+        // 3 second cooldown before next capture
+        cooldownTimerRef.current = setTimeout(() => {
+          setIsOnCooldown(false);
+        }, 3000);
+      }
+    }, 1000);
+
+    countdownRef.current = countdownInterval;
+  }, [detectedObjects, onDetection, isCapturing, isOnCooldown]);
 
   // Run object detection
   useEffect(() => {
@@ -108,12 +179,19 @@ const ObjectDetector = ({
 
           if (highestConfidence < noObjectThreshold) {
             const noObjectResult: DetectedObject[] = [
-              {
-                className: "No Object",
-                score: 1.0,
-              },
+              { className: "No Object", score: 1.0 },
             ];
             setDetectedObjects(noObjectResult);
+            stableDetectionRef.current = null;
+            stableDetectionCount.current = 0;
+
+            // Cancel countdown if no object
+            if (countdownRef.current) {
+              clearInterval(countdownRef.current);
+              countdownRef.current = null;
+              setCountdown(null);
+              setIsCapturing(false);
+            }
           } else {
             const filteredDetections = predictions
               .filter((obj) => obj.score >= confidenceThreshold)
@@ -121,21 +199,26 @@ const ObjectDetector = ({
 
             if (filteredDetections.length > 0) {
               setDetectedObjects(filteredDetections);
-              if (autoCloseEnabled) {
-                const highConfidenceDetection = filteredDetections.find(
-                  (obj) => obj.score >= captureThreshold
-                );
-                if (highConfidenceDetection) {
-                  onDetection(filteredDetections);
-                  onActivationChange(false);
+
+              // Check for stable detection (same object for 5 consecutive frames)
+              const currentObject = filteredDetections[0].className;
+              if (stableDetectionRef.current === currentObject) {
+                stableDetectionCount.current++;
+
+                // Start countdown after 5 stable detections (~0.5 seconds)
+                if (stableDetectionCount.current >= 5 && !isCapturing) {
+                  startCountdown();
                 }
+              } else {
+                stableDetectionRef.current = currentObject;
+                stableDetectionCount.current = 1;
               }
             } else {
               setDetectedObjects([{ className: "No Object", score: 1.0 }]);
+              stableDetectionRef.current = null;
+              stableDetectionCount.current = 0;
             }
           }
-        } else {
-          setDetectedObjects([{ className: "No Object", score: 1.0 }]);
         }
       }, 100);
     };
@@ -152,37 +235,23 @@ const ObjectDetector = ({
     model,
     isActive,
     isLoading,
-    autoCloseEnabled,
-    captureThreshold,
     confidenceThreshold,
     noObjectThreshold,
-    onDetection,
-    onActivationChange,
-    detect, // Now included in dependencies
+    detect,
+    isCapturing,
+    startCountdown,
   ]);
-
-  const handleCapture = () => {
-    if (
-      detectedObjects.length > 0 &&
-      detectedObjects[0].className !== "No Object"
-    ) {
-      onDetection(detectedObjects);
-      if (autoCloseEnabled) {
-        onActivationChange(false);
-      }
-    }
-  };
 
   const handleClose = () => {
     if (detectionRef.current) {
       clearInterval(detectionRef.current);
       detectionRef.current = null;
     }
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
     onActivationChange(false);
-  };
-
-  const toggleAutoClose = () => {
-    setAutoCloseEnabled(!autoCloseEnabled);
   };
 
   if (!isActive) {
@@ -241,42 +310,33 @@ const ObjectDetector = ({
         />
       </div>
 
+      {/* Countdown Overlay */}
+      {countdown !== null && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-60 z-30">
+          <div className="text-center">
+            <div className="text-8xl font-bold text-white animate-pulse">
+              {countdown}
+            </div>
+            <p className="text-white text-lg mt-4">Hold still...</p>
+          </div>
+        </div>
+      )}
+
       <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-2 flex flex-col gap-1 z-20">
         <div className="grid grid-cols-2 gap-2">
           {detectedObjects.map((obj, index) => (
-            <div key={index} className="text-xs text-white">
-              <span className="font-medium">{obj.className}</span>:{" "}
-              {obj.className === "No Object"
-                ? "100%"
-                : (obj.score * 100).toFixed(2) + "%"}
+            <div key={index} className="text-sm text-white font-medium">
+              {obj.className}
             </div>
           ))}
         </div>
-        <div className="flex justify-between items-center mt-2">
-          <div className="flex items-center">
-            <Switch
-              id="auto-capture"
-              checked={autoCloseEnabled}
-              onCheckedChange={toggleAutoClose}
-              className="mr-2"
-            />
-            <Label htmlFor="auto-capture" className="text-xs text-white">
-              Auto Capture
-            </Label>
-          </div>
-          <Button
-            onClick={handleCapture}
-            disabled={
-              detectedObjects.length === 0 ||
-              detectedObjects[0].className === "No Object"
-            }
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-xs bg-white hover:bg-gray-100"
-          >
-            Capture
-          </Button>
-        </div>
+        {detectedObjects.length > 0 &&
+          detectedObjects[0].className !== "No Object" &&
+          !isCapturing && (
+            <p className="text-xs text-white text-center mt-1">
+              Object detected! Preparing to capture...
+            </p>
+          )}
       </div>
     </div>
   );

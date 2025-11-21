@@ -188,55 +188,28 @@ export default function ProductManagement() {
   useEffect(() => {
     const loadLocations = async () => {
       try {
-        setLoading(true);
-        console.log("📍 Fetching locations...");
-
         const response = await fetch(
           "/api/locations/batangas?allCities=true&coordinates=true"
         );
 
-        console.log("Response status:", response.status);
-        console.log("Response ok:", response.ok);
-
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error("❌ API Error:", errorText);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log("✅ API Response:", {
-          success: data.success,
-          count: data.count,
-          hasLocations: !!data.locations,
-          locationsLength: data.locations?.length,
-        });
 
         if (data.success && data.locations?.length > 0) {
           setApiLocations(data.locations);
           console.log(`✅ Loaded ${data.count} locations`);
-        } else {
-          console.warn("⚠️ No locations in response:", data);
-          setApiLocations([]);
-          toast.error("No locations available");
         }
       } catch (error) {
         console.error("❌ Failed to fetch locations:", error);
-        setApiLocations([]);
-        toast.error(
-          `Failed to load locations: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
-      } finally {
-        setLoading(false);
+        toast.error("Failed to load locations");
       }
     };
 
-    if (mounted) {
-      loadLocations();
-    }
-  }, [mounted]);
+    loadLocations();
+  }, []); // Remove the 'mounted' dependency, run once on mount
 
   // Filter products based on search term
   const filteredProducts = products.filter(
@@ -374,6 +347,10 @@ export default function ProductManagement() {
   };
 
   const handleAddressChange = (value: string) => {
+    console.log("🔍 Typing:", value);
+    console.log("📍 Available locations:", apiLocations.length);
+    console.log("📍 First 3 locations:", apiLocations.slice(0, 3));
+
     setAddressInput(value);
     setShipmentData({ ...shipmentData, destination: value });
 
@@ -384,6 +361,8 @@ export default function ProductManagement() {
           addr.fullAddress.toLowerCase().includes(value.toLowerCase()) ||
           addr.barangay.toLowerCase().includes(value.toLowerCase())
       );
+      console.log("✅ Filtered results:", filtered.length);
+      console.log("✅ Filtered data:", filtered);
       setFilteredAddresses(filtered.slice(0, 5));
       setShowDropdown(true);
     } else {

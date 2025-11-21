@@ -19,7 +19,7 @@ import { FaTruck, FaClipboardList } from "react-icons/fa6";
 import { FaHistory, FaUsers } from "react-icons/fa";
 import { IoMdSettings } from "react-icons/io";
 import { Session } from "@/better-auth/auth-types";
-import { authClient } from "@/lib/auth-client"; // Adjust import path as needed
+import { authClient } from "@/lib/auth-client";
 import { usePathname, useRouter } from "next/navigation";
 
 type UserWithRole = {
@@ -36,22 +36,12 @@ type SessionWithRole = Session & {
 const rolePageAccess = {
   admin: [
     "/dashboard",
-    "/deliveries",
-    "/deliveries/overview",
-    "/deliveries/assignments",
     "/manage-product",
     "/history",
     "/manage-users",
     "/settings",
   ],
-  cashier: [
-    "/dashboard",
-    "/deliveries",
-    "/deliveries/overview",
-    "/deliveries/assignments",
-    "/manage-product",
-    "/settings",
-  ],
+  cashier: ["/dashboard", "/manage-product", "/settings"],
   delivery: [
     "/deliveries",
     "/deliveries/overview",
@@ -60,6 +50,7 @@ const rolePageAccess = {
   ],
   user: ["/settings"],
 };
+
 const roleDefaultPage = {
   admin: "/dashboard",
   cashier: "/dashboard",
@@ -97,13 +88,13 @@ const data = {
       title: "Delivery Overview",
       url: "/deliveries/overview",
       icon: <FaTruck />,
-      roles: ["admin", "delivery"],
+      roles: ["delivery"],
     },
     {
       title: "Assignments",
       url: "/deliveries/assignments",
       icon: <FaClipboardList />,
-      roles: ["admin", "delivery"],
+      roles: ["delivery"],
     },
   ],
   admin: [
@@ -147,21 +138,21 @@ const filterItemsByRole = (role: string | undefined) => {
   const rolePermissions = {
     admin: {
       dashboard: data.dashboard,
-      deliveries: data.deliveries,
+      deliveries: [],
       products: data.products,
       admin: data.admin,
       settings: data.settings,
     },
     cashier: {
       dashboard: data.dashboard,
-      deliveries: [], // Cashier should NOT see delivery pages
+      deliveries: [],
       products: data.products,
       admin: [],
       settings: data.settings,
     },
     delivery: {
       dashboard: [],
-      deliveries: data.deliveries, // Only delivery sees these
+      deliveries: data.deliveries,
       products: [],
       admin: [],
       settings: data.settings,
@@ -194,7 +185,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     fetchCurrentUser();
   }, []);
 
-  // Check access and redirect if needed
   React.useEffect(() => {
     if (session) {
       const userRole = (session as SessionWithRole)?.user?.role;
@@ -209,6 +199,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const userRole = (session as SessionWithRole | null)?.user?.role;
   const filteredData = filterItemsByRole(userRole);
+
   return (
     <Sidebar collapsible="offcanvas" variant="inset" {...props}>
       <SidebarHeader>
