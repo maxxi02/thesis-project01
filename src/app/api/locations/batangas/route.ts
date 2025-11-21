@@ -39,17 +39,17 @@ async function getCoordinates(
   address: string
 ): Promise<{ lat: number; lng: number } | null> {
   try {
-    const response = await fetch(
-      `${NOMINATIM_URL}/search?q=${encodeURIComponent(
-        address
-      )}&format=json&limit=1`,
-      {
-        headers: {
-          "User-Agent": "YourAppName/1.0",
-        },
-        next: { revalidate: 86400 }, // Cache for 24 hours
-      }
-    );
+const response = await fetch(
+  `${NOMINATIM_URL}/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+  {
+    headers: {
+      "User-Agent": "LGW Hardware",
+      "Accept": "application/json",
+      "Referer": process.env.NEXT_PUBLIC_URL || "https://thesis-project01.vercel.app"
+    },
+    next: { revalidate: 86400 },
+  }
+);
 
     const data = await response.json();
 

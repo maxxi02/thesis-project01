@@ -192,7 +192,7 @@ const loadLocations = async () => {
     setLoading(true);
     console.log('📍 Fetching locations...');
     
-    const response = await fetch("/api/locations/batangas?allCities=true");
+const response = await fetch("/api/locations/batangas?allCities=true&coordinates=true");
     
     console.log('Response status:', response.status);
     console.log('Response ok:', response.ok);
