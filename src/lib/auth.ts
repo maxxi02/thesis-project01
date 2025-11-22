@@ -6,32 +6,32 @@ import { db } from "@/database/mongodb";
 import { admin, cashier, delivery, user, ac } from "@/better-auth/permissions";
 import { sendEmail } from "./resend/brevo";
 
-const emailRateLimitStorage = {
-  get: async (key: string) => {
-    // Check if this is a sign-in request by looking at the key pattern
-    if (key.includes("/sign-in/email")) {
-      // Don't use IP-based key for sign-in
-      return null;
-    }
-    const collection = db.collection("rateLimit");
-    const result = await collection.findOne({ key });
-    return result
-      ? { count: result.count, lastRequest: result.lastRequest }
-      : null;
-  },
-  set: async (key: string, value: { count: number; lastRequest: number }) => {
-    // Skip storing IP-based keys for sign-in
-    if (key.includes("/sign-in/email")) {
-      return;
-    }
-    const collection = db.collection("rateLimit");
-    await collection.updateOne(
-      { key },
-      { $set: { ...value, key } },
-      { upsert: true }
-    );
-  },
-};
+// const emailRateLimitStorage = {
+//   get: async (key: string) => {
+//     // Check if this is a sign-in request by looking at the key pattern
+//     if (key.includes("/sign-in/email")) {
+//       // Don't use IP-based key for sign-in
+//       return null;
+//     }
+//     const collection = db.collection("rateLimit");
+//     const result = await collection.findOne({ key });
+//     return result
+//       ? { count: result.count, lastRequest: result.lastRequest }
+//       : null;
+//   },
+//   set: async (key: string, value: { count: number; lastRequest: number }) => {
+//     // Skip storing IP-based keys for sign-in
+//     if (key.includes("/sign-in/email")) {
+//       return;
+//     }
+//     const collection = db.collection("rateLimit");
+//     await collection.updateOne(
+//       { key },
+//       { $set: { ...value, key } },
+//       { upsert: true }
+//     );
+//   },
+// };
 
 export const auth = betterAuth({
   database: mongodbAdapter(db),

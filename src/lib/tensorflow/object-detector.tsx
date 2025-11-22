@@ -57,6 +57,36 @@ const ObjectDetector = ({
     };
   }, []);
 
+  // Clean up function to stop camera and clear intervals
+  const cleanupCamera = useCallback(() => {
+    if (detectionRef.current) {
+      clearInterval(detectionRef.current);
+      detectionRef.current = null;
+    }
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    if (cooldownTimerRef.current) {
+      clearTimeout(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+
+    // Stop webcam stream
+    if (webcamRef.current?.video?.srcObject) {
+      const stream = webcamRef.current.video.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+    }
+
+    // Reset states
+    setDetectedObjects([]);
+    setCountdown(null);
+    setIsCapturing(false);
+    setIsOnCooldown(false);
+    stableDetectionRef.current = null;
+    stableDetectionCount.current = 0;
+  }, []);
+
   // Memoize detect function
   const detect = useCallback(async (): Promise<DetectedObject[] | null> => {
     if (!model || !webcamRef.current) return null;
@@ -96,23 +126,14 @@ const ObjectDetector = ({
 
     if (isActive) {
       loadModel();
+    } else {
+      cleanupCamera();
     }
 
     return () => {
-      if (detectionRef.current) {
-        clearInterval(detectionRef.current);
-        detectionRef.current = null;
-      }
-      if (countdownRef.current) {
-        clearTimeout(countdownRef.current);
-        countdownRef.current = null;
-      }
-      if (cooldownTimerRef.current) {
-        clearTimeout(cooldownTimerRef.current);
-        cooldownTimerRef.current = null;
-      }
+      cleanupCamera();
     };
-  }, [isActive, onActivationChange, modelUrl]);
+  }, [isActive, onActivationChange, modelUrl, cleanupCamera]);
 
   // Auto-capture when stable object detected
   const startCountdown = useCallback(() => {
@@ -142,24 +163,31 @@ const ObjectDetector = ({
           detectedObjects[0].className !== "No Object"
         ) {
           onDetection(detectedObjects);
+
+          // Clean up and turn off camera after successful detection
+          setTimeout(() => {
+            cleanupCamera();
+            onActivationChange(false);
+          }, 500);
         }
 
-        // Reset and start cooldown
+        // Reset states
         setCountdown(null);
         setIsCapturing(false);
-        setIsOnCooldown(true);
         stableDetectionRef.current = null;
         stableDetectionCount.current = 0;
-
-        // 3 second cooldown before next capture
-        cooldownTimerRef.current = setTimeout(() => {
-          setIsOnCooldown(false);
-        }, 3000);
       }
     }, 1000);
 
     countdownRef.current = countdownInterval;
-  }, [detectedObjects, onDetection, isCapturing, isOnCooldown]);
+  }, [
+    detectedObjects,
+    onDetection,
+    isCapturing,
+    isOnCooldown,
+    cleanupCamera,
+    onActivationChange,
+  ]);
 
   // Run object detection
   useEffect(() => {
@@ -243,14 +271,7 @@ const ObjectDetector = ({
   ]);
 
   const handleClose = () => {
-    if (detectionRef.current) {
-      clearInterval(detectionRef.current);
-      detectionRef.current = null;
-    }
-    if (countdownRef.current) {
-      clearInterval(countdownRef.current);
-      countdownRef.current = null;
-    }
+    cleanupCamera();
     onActivationChange(false);
   };
 

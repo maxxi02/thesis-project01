@@ -16,14 +16,6 @@ import { authClient } from "@/lib/auth-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -55,6 +47,8 @@ import Image from "next/image";
 import { NotificationHelper } from "@/notification/notification-helper";
 import { getServerSession } from "@/better-auth/action";
 import { ObjectDetectionModal } from "@/lib/tensorflow/object-detection-model";
+import { CustomModal } from "./custom-modal";
+import { CustomDialog } from "./custom-dialog";
 
 interface DeliveryPersonnel {
   id: string;
@@ -162,14 +156,12 @@ export default function ProductManagement() {
     description: "",
     image: "",
   });
-  selectedProduct;
 
-  // api states for location
   const [apiLocations, setApiLocations] = useState<BatangasCityAddress[]>([]);
-
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
 
+  // Handle image upload
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -185,14 +177,21 @@ export default function ProductManagement() {
       reader.readAsDataURL(file);
     }
   };
+
+  // Load locations on mount
   useEffect(() => {
     const loadLocations = async () => {
       try {
+        setLoading(true);
+        console.log("📍 Fetching locations...");
+
         const response = await fetch(
           "/api/locations/batangas?allCities=true&coordinates=true"
         );
 
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error("❌ API Error:", errorText);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
@@ -201,15 +200,28 @@ export default function ProductManagement() {
         if (data.success && data.locations?.length > 0) {
           setApiLocations(data.locations);
           console.log(`✅ Loaded ${data.count} locations`);
+        } else {
+          console.warn("⚠️ No locations in response:", data);
+          setApiLocations([]);
+          toast.error("No locations available");
         }
       } catch (error) {
         console.error("❌ Failed to fetch locations:", error);
-        toast.error("Failed to load locations");
+        setApiLocations([]);
+        toast.error(
+          `Failed to load locations: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      } finally {
+        setLoading(false);
       }
     };
 
-    loadLocations();
-  }, []); // Remove the 'mounted' dependency, run once on mount
+    if (mounted) {
+      loadLocations();
+    }
+  }, [mounted]);
 
   // Filter products based on search term
   const filteredProducts = products.filter(
@@ -219,6 +231,7 @@ export default function ProductManagement() {
       product.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Authentication error handler
   const handleAuthError = (response: Response) => {
     if (response.status === 401) {
       toast.error("Session expired. Please log in again.");
@@ -228,6 +241,7 @@ export default function ProductManagement() {
     return false;
   };
 
+  // Fetch categories
   const fetchCategories = async () => {
     try {
       const response = await fetch("/api/categories");
@@ -243,6 +257,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Add new category
   const addCategory = async () => {
     if (!newCategory.trim()) return;
 
@@ -284,6 +299,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Fetch products
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -300,6 +316,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Fetch delivery personnel
   const fetchDeliveryPersonnel = async () => {
     try {
       const response = await authClient.admin.listUsers({
@@ -346,11 +363,8 @@ export default function ProductManagement() {
     }
   };
 
+  // Handle address input changes
   const handleAddressChange = (value: string) => {
-    console.log("🔍 Typing:", value);
-    console.log("📍 Available locations:", apiLocations.length);
-    console.log("📍 First 3 locations:", apiLocations.slice(0, 3));
-
     setAddressInput(value);
     setShipmentData({ ...shipmentData, destination: value });
 
@@ -361,8 +375,6 @@ export default function ProductManagement() {
           addr.fullAddress.toLowerCase().includes(value.toLowerCase()) ||
           addr.barangay.toLowerCase().includes(value.toLowerCase())
       );
-      console.log("✅ Filtered results:", filtered.length);
-      console.log("✅ Filtered data:", filtered);
       setFilteredAddresses(filtered.slice(0, 5));
       setShowDropdown(true);
     } else {
@@ -371,6 +383,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Product addition methods
   const handleAddProduct = () => {
     setShowAddMethodModal(true);
   };
@@ -413,6 +426,7 @@ export default function ProductManagement() {
     });
   };
 
+  // Add new product
   const confirmAddProduct = async () => {
     const price = parseFloat(newProductData.price);
     const stock = parseInt(newProductData.stock);
@@ -481,6 +495,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Handle sell functionality
   const handleSell = (product: Product) => {
     setSelectedProduct(product);
     setSellData({ quantity: "", note: "" });
@@ -490,7 +505,6 @@ export default function ProductManagement() {
   const confirmSell = async () => {
     if (!selectedProduct) return;
 
-    // Validate before sending
     const quantity = parseInt(sellData.quantity);
     if (!quantity || quantity <= 0 || quantity > selectedProduct.stock) {
       toast.error("Invalid quantity");
@@ -535,6 +549,8 @@ export default function ProductManagement() {
       setLoading(false);
     }
   };
+
+  // Handle ship functionality
   const handleShip = (product: Product) => {
     setSelectedProduct(product);
     setShipmentData({
@@ -550,7 +566,6 @@ export default function ProductManagement() {
   const confirmShipment = async () => {
     if (!selectedProduct) return;
 
-    // Prevent multiple submissions
     if (loading) {
       toast.error("Processing shipment, please wait...");
       return;
@@ -572,10 +587,6 @@ export default function ProductManagement() {
         (addr: BatangasCityAddress) =>
           addr.fullAddress === shipmentData.destination
       );
-
-      // ✅ Log to debug
-      console.log("Selected Address:", selectedAddress);
-      console.log("Has coordinates:", selectedAddress?.coordinates);
 
       const response = await fetch(
         `/api/products/${selectedProduct._id}/to-ship`,
@@ -615,7 +626,6 @@ export default function ProductManagement() {
 
       const result = await response.json();
 
-      // Close modal and reset BEFORE notifications to prevent double-click
       setShowShipModal(false);
       setShipmentData({
         quantity: "",
@@ -625,7 +635,7 @@ export default function ProductManagement() {
         estimatedDelivery: "",
       });
 
-      // Send notification (non-blocking)
+      // Send notification
       fetch("/api/notifications/newShipment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -687,6 +697,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Edit product functionality
   const handleEdit = (product: Product) => {
     setSelectedProduct(product);
     setEditProductData({
@@ -704,7 +715,6 @@ export default function ProductManagement() {
   const confirmEdit = async () => {
     if (!selectedProduct) return;
 
-    // Validate price and stock
     const price = parseFloat(editProductData.price);
     const stock = parseInt(editProductData.stock);
 
@@ -754,6 +764,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Delete product functionality
   const handleDelete = (product: Product) => {
     setSelectedProduct(product);
     setShowDeleteModal(true);
@@ -790,6 +801,7 @@ export default function ProductManagement() {
     }
   };
 
+  // Get status badge for product
   const getStatusBadge = (status: string, stock: number) => {
     if (stock === 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
@@ -808,6 +820,7 @@ export default function ProductManagement() {
     }
   };
 
+  // SSE connection setup
   const setupSSEConnection = (userId: string, userEmail: string) => {
     if (sseConnectionRef.current) {
       sseConnectionRef.current.close();
@@ -862,6 +875,7 @@ export default function ProductManagement() {
     };
   };
 
+  // Effects
   useEffect(() => {
     const fetchSession = async () => {
       const session = await getServerSession();
@@ -904,7 +918,8 @@ export default function ProductManagement() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  if (loading) {
+  // Loading state
+  if (loading && products.length === 0) {
     return (
       <div className="container mx-auto p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -981,7 +996,7 @@ export default function ProductManagement() {
                     <Image
                       width={500}
                       height={500}
-                      src={product.image || ""}
+                      src={product.image || "/placeholder.svg"}
                       alt={product.name}
                       className="w-full h-full object-cover"
                     />
@@ -991,7 +1006,7 @@ export default function ProductManagement() {
                   </div>
                   <CardContent className="p-4">
                     <div className="space-y-2 mb-4">
-                      <h3 className="font-semibold text-lg line-clamp-1">
+                      <h3 className="font-semibold text-lg line-clamp-1 break-words">
                         {product.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
@@ -1099,7 +1114,7 @@ export default function ProductManagement() {
                             <Image
                               width={48}
                               height={48}
-                              src={product.image || ""}
+                              src={product.image || "/placeholder.svg"}
                               alt={product.name}
                               className="w-full h-full object-cover"
                             />
@@ -1186,75 +1201,55 @@ export default function ProductManagement() {
       </Tabs>
 
       {/* Add Method Selection Modal */}
-      <Dialog open={showAddMethodModal} onOpenChange={setShowAddMethodModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Add New Product
-            </DialogTitle>
-            <DialogDescription>
-              Choose how you&#39;d like to add a new product to your inventory.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Button
-              onClick={handleManualAdd}
-              variant="outline"
-              className="h-20 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 bg-transparent"
-            >
-              <Edit className="h-6 w-6" />
-              <div className="text-center">
-                <div className="font-medium">Manual Entry</div>
-                <div className="text-sm text-muted-foreground">
-                  Enter product details manually
-                </div>
-              </div>
-            </Button>
-            <Button
-              onClick={handleObjectDetectionAdd}
-              variant="outline"
-              className="h-20 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 bg-transparent"
-            >
-              <Scan className="h-6 w-6" />
-              <div className="text-center">
-                <div className="font-medium">Object Detection</div>
-                <div className="text-sm text-muted-foreground">
-                  Use camera to detect and identify products
-                </div>
-              </div>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Category Modal */}
-      <Dialog
-        open={showAddCategoryModal}
-        onOpenChange={setShowAddCategoryModal}
+      <CustomModal
+        isOpen={showAddMethodModal}
+        onClose={() => setShowAddMethodModal(false)}
+        title="Add New Product"
+        description="Choose how you'd like to add a new product to your inventory."
+        maxWidth="max-w-md"
       >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Add New Category
-            </DialogTitle>
-            <DialogDescription>
-              Enter the name for the new category.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="new-category-name">Category Name</Label>
-              <Input
-                id="new-category-name"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                placeholder="Enter category name"
-              />
+        <div className="grid gap-4">
+          <Button
+            onClick={handleManualAdd}
+            variant="outline"
+            className="h-20 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 bg-transparent"
+          >
+            <Edit className="h-6 w-6" />
+            <div className="text-center">
+              <div className="font-medium">Manual Entry</div>
+              <div className="text-sm text-muted-foreground">
+                Enter product details manually
+              </div>
             </div>
-          </div>
-          <DialogFooter>
+          </Button>
+          <Button
+            onClick={handleObjectDetectionAdd}
+            variant="outline"
+            className="h-20 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 bg-transparent"
+          >
+            <Scan className="h-6 w-6" />
+            <div className="text-center">
+              <div className="font-medium">Object Detection</div>
+              <div className="text-sm text-muted-foreground">
+                Use camera to detect and identify products
+              </div>
+            </div>
+          </Button>
+        </div>
+      </CustomModal>
+
+      <CustomModal
+        isOpen={showAddCategoryModal}
+        onClose={() => {
+          setShowAddCategoryModal(false);
+          setNewCategory("");
+        }}
+        title="Add New Category"
+        description="Enter the name for the new category."
+        maxWidth="max-w-md"
+        zIndex={60} // Higher z-index than the product modal
+        footer={
+          <>
             <Button
               variant="outline"
               onClick={() => {
@@ -1264,174 +1259,47 @@ export default function ProductManagement() {
             >
               Cancel
             </Button>
-            <Button onClick={addCategory} disabled={!newCategory.trim()}>
-              Add Category
+            <Button
+              onClick={addCategory}
+              disabled={!newCategory.trim() || loading}
+            >
+              {loading ? "Adding..." : "Add Category"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="new-category-name">Category Name</Label>
+            <Input
+              id="new-category-name"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              placeholder="Enter category name"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newCategory.trim()) {
+                  addCategory();
+                }
+              }}
+            />
+          </div>
+        </div>
+      </CustomModal>
 
       {/* Add Product Modal */}
-      <Dialog open={showAddProductModal} onOpenChange={setShowAddProductModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Add New Product
-            </DialogTitle>
-            <DialogDescription>
-              Enter the details for the new product.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="new-name">Product Name</Label>
-              <Input
-                id="new-name"
-                value={newProductData.name}
-                onChange={(e) =>
-                  setNewProductData({ ...newProductData, name: e.target.value })
-                }
-                placeholder="Enter product name"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-sku">SKU (Optional)</Label>
-              <Input
-                id="new-sku"
-                value={newProductData.sku}
-                onChange={(e) =>
-                  setNewProductData({ ...newProductData, sku: e.target.value })
-                }
-                placeholder="Leave blank to auto-generate"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-category">Category</Label>
-              <div className="flex flex-col gap-1">
-                <Select
-                  value={newProductData.category}
-                  onValueChange={(value) =>
-                    setNewProductData({ ...newProductData, category: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="self-start p-0 h-auto text-xs"
-                  onClick={() => setShowAddCategoryModal(true)}
-                >
-                  + Add New Category
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="new-price">Price</Label>
-                <Input
-                  id="new-price"
-                  type="number"
-                  step="0.01"
-                  min={MIN_PRICE}
-                  max={MAX_PRICE}
-                  value={newProductData.price}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    if (value < 0) return;
-                    if (value > MAX_PRICE) {
-                      toast.error(
-                        `Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`
-                      );
-                      return;
-                    }
-                    setNewProductData({
-                      ...newProductData,
-                      price: e.target.value,
-                    });
-                  }}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="new-stock">Stock </Label>
-                <Input
-                  id="new-stock"
-                  type="number"
-                  min="0"
-                  max={MAX_STOCK}
-                  value={newProductData.stock}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (isNaN(value) || value < 0) {
-                      toast.error("Stock cannot be negative");
-                      return;
-                    }
-                    if (value > MAX_STOCK) {
-                      toast.error(`Stock cannot exceed ${MAX_STOCK} units`);
-                      return;
-                    }
-                    setNewProductData({
-                      ...newProductData,
-                      stock: e.target.value,
-                    });
-                  }}
-                  onKeyDown={(e) => {
-                    // Prevent minus sign
-                    if (e.key === "-" || e.key === "e" || e.key === "E") {
-                      e.preventDefault();
-                    }
-                  }}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-description">Description</Label>
-              <Textarea
-                id="new-description"
-                value={newProductData.description}
-                onChange={(e) =>
-                  setNewProductData({
-                    ...newProductData,
-                    description: e.target.value,
-                  })
-                }
-                placeholder="Product description"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-image">Product Image</Label>
-              <Input
-                id="new-image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-              />
-              {imagePreview && (
-                <div className="mt-2 relative w-full h-32 border rounded-md overflow-hidden">
-                  <Image
-                    src={imagePreview}
-                    alt="Preview"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
+      <CustomModal
+        isOpen={showAddProductModal}
+        onClose={() => {
+          setShowAddProductModal(false);
+          setImageFile(null);
+          setImagePreview("");
+        }}
+        title="Add New Product"
+        description="Enter the details for the new product."
+        maxWidth="max-w-md"
+        footer={
+          <>
             <Button
               variant="outline"
               onClick={() => {
@@ -1452,9 +1320,261 @@ export default function ProductManagement() {
             >
               Add Product
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="new-name">
+              Product Name
+              <span className="text-xs text-muted-foreground ml-2">
+                {newProductData.name.length}/100
+              </span>
+            </Label>
+            <Input
+              id="new-name"
+              value={newProductData.name}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setNewProductData({ ...newProductData, name: value });
+                } else {
+                  toast.error("Product name cannot exceed 100 characters");
+                }
+              }}
+              placeholder="Enter product name"
+              maxLength={100}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="new-sku">
+              SKU (Optional)
+              <span className="text-xs text-muted-foreground ml-2">
+                {newProductData.sku.length}/100
+              </span>
+            </Label>
+            <Input
+              id="new-sku"
+              value={newProductData.sku}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setNewProductData({ ...newProductData, sku: value });
+                } else {
+                  toast.error("SKU cannot exceed 100 characters");
+                }
+              }}
+              placeholder="Leave blank to auto-generate"
+              maxLength={100}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="new-category">Category</Label>
+            <div className="flex flex-col gap-1">
+              <Select
+                value={newProductData.category}
+                onValueChange={(value) =>
+                  setNewProductData({ ...newProductData, category: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="self-start p-0 h-auto text-xs"
+                onClick={() => setShowAddCategoryModal(true)}
+              >
+                + Add New Category
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {/* ========== PRICE INPUT WITH VALIDATION ========== */}
+            <div className="grid gap-2">
+              <Label htmlFor="new-price">Price</Label>
+              <Input
+                id="new-price"
+                type="number"
+                step="0.01"
+                min={MIN_PRICE}
+                max={MAX_PRICE}
+                value={newProductData.price}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const numValue = parseFloat(value);
+
+                  // Prevent entering values above max
+                  if (numValue > MAX_PRICE) {
+                    toast.error(
+                      `Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`
+                    );
+                    return;
+                  }
+
+                  // Prevent negative values
+                  if (numValue < 0) {
+                    return;
+                  }
+
+                  setNewProductData({
+                    ...newProductData,
+                    price: value,
+                  });
+                }}
+                onKeyDown={(e) => {
+                  // Prevent minus, plus, and 'e' (exponential)
+                  if (
+                    e.key === "-" ||
+                    e.key === "+" ||
+                    e.key === "e" ||
+                    e.key === "E"
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
+                onPaste={(e) => {
+                  // Prevent pasting invalid values
+                  const pasteData = e.clipboardData.getData("text");
+                  const numValue = parseFloat(pasteData);
+                  if (
+                    isNaN(numValue) ||
+                    numValue < MIN_PRICE ||
+                    numValue > MAX_PRICE
+                  ) {
+                    e.preventDefault();
+                    toast.error(
+                      `Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`
+                    );
+                  }
+                }}
+                placeholder="0.00"
+              />
+            </div>
+            {/* ========== STOCK INPUT WITH VALIDATION ========== */}
+            <div className="grid gap-2">
+              <Label htmlFor="new-stock">Stock </Label>
+              <Input
+                id="new-stock"
+                type="number"
+                min={MIN_STOCK}
+                max={MAX_STOCK}
+                value={newProductData.stock}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const numValue = parseInt(value);
+
+                  // Allow empty string for deletion
+                  if (value === "") {
+                    setNewProductData({
+                      ...newProductData,
+                      stock: "",
+                    });
+                    return;
+                  }
+
+                  // Prevent values above max
+                  if (numValue > MAX_STOCK) {
+                    toast.error(`Stock cannot exceed ${MAX_STOCK} units`);
+                    return;
+                  }
+
+                  // Prevent negative values
+                  if (numValue < 0) {
+                    return;
+                  }
+
+                  setNewProductData({
+                    ...newProductData,
+                    stock: value,
+                  });
+                }}
+                onKeyDown={(e) => {
+                  // Prevent minus, plus, decimal, and 'e'
+                  if (
+                    e.key === "-" ||
+                    e.key === "+" ||
+                    e.key === "." ||
+                    e.key === "e" ||
+                    e.key === "E"
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
+                onPaste={(e) => {
+                  const pasteData = e.clipboardData.getData("text");
+                  const numValue = parseInt(pasteData);
+                  if (
+                    isNaN(numValue) ||
+                    numValue < MIN_STOCK ||
+                    numValue > MAX_STOCK
+                  ) {
+                    e.preventDefault();
+                    toast.error(
+                      `Stock must be between ${MIN_STOCK} and ${MAX_STOCK} units`
+                    );
+                  }
+                }}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="new-description">
+              Description
+              <span className="text-xs text-muted-foreground ml-2">
+                {(newProductData.description || "").length}/100
+              </span>
+            </Label>
+            <Textarea
+              id="new-description"
+              value={newProductData.description}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setNewProductData({
+                    ...newProductData,
+                    description: value,
+                  });
+                } else {
+                  toast.error("Description cannot exceed 100 characters");
+                }
+              }}
+              placeholder="Product description"
+              maxLength={100}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="new-image">Product Image</Label>
+            <Input
+              id="new-image"
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+            />
+            {imagePreview && (
+              <div className="mt-2 relative w-full h-32 border rounded-md overflow-hidden">
+                <Image
+                  src={imagePreview}
+                  alt="Preview"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </CustomModal>
 
       {/* Object Detection Modal */}
       <ObjectDetectionModal
@@ -1463,193 +1583,139 @@ export default function ProductManagement() {
         onProductFound={handleProductFound}
       />
 
-      {/* Sell Product Modal */}
-      <Dialog open={showSellModal} onOpenChange={setShowSellModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span className="text-lg">🛒</span>
-              Sell Product
-            </DialogTitle>
-            <DialogDescription>
-              Process sale for {selectedProduct?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="sell-quantity">Quantity to Sell</Label>
-              <Input
-                id="sell-quantity"
-                type="number"
-                placeholder="Enter quantity"
-                value={sellData.quantity}
-                onChange={(e) =>
-                  setSellData({ ...sellData, quantity: e.target.value })
-                }
-                max={selectedProduct?.stock}
-                min="1"
-              />
-              <p className="text-sm text-muted-foreground">
-                Available stock: {selectedProduct?.stock}
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="sell-note">Sale Note (Optional)</Label>
-              <Textarea
-                id="sell-note"
-                placeholder="Additional notes about this sale"
-                value={sellData.note}
-                onChange={(e) =>
-                  setSellData({ ...sellData, note: e.target.value })
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
+      {/* ========== SELL MODAL WITH VALIDATION ========== */}
+      <CustomModal
+        isOpen={showSellModal}
+        onClose={() => setShowSellModal(false)}
+        title="Confirm Sale"
+        description={`Process sale of ${selectedProduct?.name}`}
+        maxWidth="max-w-md"
+        footer={
+          <>
             <Button variant="outline" onClick={() => setShowSellModal(false)}>
               Cancel
             </Button>
             <Button
               onClick={confirmSell}
               disabled={
+                loading ||
                 !sellData.quantity ||
                 Number.parseInt(sellData.quantity) <= 0 ||
                 Number.parseInt(sellData.quantity) >
                   (selectedProduct?.stock || 0)
               }
             >
-              Process Sale
+              {loading ? "Processing..." : "Process Sale"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="sell-quantity">Quantity to Sell</Label>
+            <Input
+              id="sell-quantity"
+              type="number"
+              placeholder="Enter quantity"
+              value={sellData.quantity}
+              onChange={(e) => {
+                const value = e.target.value;
+                const numValue = parseInt(value);
 
-      {/* Ship Product Modal */}
-      <Dialog open={showShipModal} onOpenChange={setShowShipModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span className="text-lg">📦</span>
-              Ship Product
-            </DialogTitle>
-            <DialogDescription>
-              Configure shipment details for {selectedProduct?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="quantity">Quantity to Ship</Label>
-              <Input
-                id="quantity"
-                type="number"
-                placeholder="Enter quantity"
-                value={shipmentData.quantity}
-                onChange={(e) =>
-                  setShipmentData({ ...shipmentData, quantity: e.target.value })
+                if (value === "") {
+                  setSellData({ ...sellData, quantity: "" });
+                  return;
                 }
-                max={selectedProduct?.stock}
-                min="1"
-              />
-              <p className="text-sm text-muted-foreground">
-                Available stock: {selectedProduct?.stock}
-              </p>
-            </div>
-            <div className="grid gap-2 relative">
-              <Label htmlFor="destination">Destination Address</Label>
-              <div className="relative">
-                <Input
-                  id="destination"
-                  placeholder="Start typing city or street..."
-                  value={addressInput}
-                  onChange={(e) => handleAddressChange(e.target.value)}
-                  onFocus={() =>
-                    addressInput.length > 1 && setShowDropdown(true)
-                  }
-                  onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                />
-                {showDropdown && filteredAddresses.length > 0 && (
-                  <ul className="absolute z-10 w-full mt-1 dark:bg-black dark:text-white bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
-                    {filteredAddresses.map((address) => (
-                      <li
-                        key={address.id}
-                        className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-black cursor-pointer"
-                        onMouseDown={() => {
-                          setAddressInput(address.fullAddress);
-                          setShipmentData({
-                            ...shipmentData,
-                            destination: address.fullAddress,
-                          });
-                          setShowDropdown(false);
-                        }}
-                      >
-                        <div className="font-medium">
-                          {address.fullAddress
-                            ? `${address.fullAddress}, `
-                            : ""}
-                          {address.barangay}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {address.city}, {address.province}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+
+                if (numValue > (selectedProduct?.stock || 0)) {
+                  toast.error(
+                    `Cannot exceed available stock of ${selectedProduct?.stock} units`
+                  );
+                  return;
+                }
+
+                if (numValue < 0) {
+                  return;
+                }
+
+                setSellData({ ...sellData, quantity: value });
+              }}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "-" ||
+                  e.key === "+" ||
+                  e.key === "." ||
+                  e.key === "e" ||
+                  e.key === "E"
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              onPaste={(e) => {
+                const pasteData = e.clipboardData.getData("text");
+                const numValue = parseInt(pasteData);
+                if (
+                  isNaN(numValue) ||
+                  numValue <= 0 ||
+                  numValue > (selectedProduct?.stock || 0)
+                ) {
+                  e.preventDefault();
+                  toast.error(
+                    `Quantity must be between 1 and ${selectedProduct?.stock} units`
+                  );
+                }
+              }}
+              max={selectedProduct?.stock}
+              min="1"
+            />
+            <p className="text-sm text-muted-foreground">
+              Available stock: {selectedProduct?.stock}
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="sell-note">Sale Note (Optional)</Label>
+            <Textarea
+              id="sell-note"
+              placeholder="Add notes about this sale"
+              value={sellData.note}
+              onChange={(e) =>
+                setSellData({ ...sellData, note: e.target.value })
+              }
+              rows={3}
+            />
+          </div>
+
+          {sellData.quantity && selectedProduct && (
+            <div className="mt-4 p-3 bg-muted rounded-lg">
+              <h4 className="font-semibold text-sm mb-2">Sale Summary</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="text-muted-foreground">Product:</div>
+                <div className="font-medium">{selectedProduct.name}</div>
+
+                <div className="text-muted-foreground">Quantity:</div>
+                <div className="font-medium">{sellData.quantity} units</div>
+
+                <div className="text-muted-foreground">Remaining Stock:</div>
+                <div className="font-medium">
+                  {selectedProduct.stock - Number.parseInt(sellData.quantity)}{" "}
+                  units
+                </div>
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="driver">Select Driver</Label>
-              <Select
-                value={shipmentData.driverId}
-                onValueChange={(value) =>
-                  setShipmentData({ ...shipmentData, driverId: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose delivery personnel" />
-                </SelectTrigger>
-                <SelectContent className="wrap-break-word">
-                  {deliveryPersonnel.map((driver) => (
-                    <SelectItem
-                      className="wrap-break-word"
-                      key={driver.id}
-                      value={driver.id}
-                    >
-                      {driver.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="note">Delivery Note (Optional)</Label>
-              <Textarea
-                id="note"
-                placeholder="Special instructions for delivery personnel"
-                value={shipmentData.note}
-                onChange={(e) =>
-                  setShipmentData({ ...shipmentData, note: e.target.value })
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="estimatedDelivery">
-                Estimated Delivery Date (Optional)
-              </Label>
-              <Input
-                id="estimatedDelivery"
-                type="datetime-local"
-                value={shipmentData.estimatedDelivery}
-                onChange={(e) =>
-                  setShipmentData({
-                    ...shipmentData,
-                    estimatedDelivery: e.target.value,
-                  })
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
+          )}
+        </div>
+      </CustomModal>
+
+      {/* ========== SHIP MODAL WITH VALIDATION ========== */}
+      <CustomModal
+        isOpen={showShipModal}
+        onClose={() => setShowShipModal(false)}
+        title="📦 Ship Product"
+        description={`Configure shipment details for ${selectedProduct?.name}`}
+        maxWidth="max-w-lg"
+        footer={
+          <>
             <Button variant="outline" onClick={() => setShowShipModal(false)}>
               Cancel
             </Button>
@@ -1667,51 +1733,343 @@ export default function ProductManagement() {
             >
               {loading ? "Processing..." : "Confirm Shipment"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="ship-quantity">Quantity to Ship</Label>
+            <Input
+              id="ship-quantity"
+              type="number"
+              placeholder="Enter quantity"
+              value={shipmentData.quantity}
+              onChange={(e) => {
+                const value = e.target.value;
+                const numValue = parseInt(value);
 
-      {/* Edit Product Modal */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit className="h-5 w-5" />
-              Edit Product
-            </DialogTitle>
-            <DialogDescription>
-              Make changes to {selectedProduct?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-name">Product Name</Label>
-              <Input
-                id="edit-name"
-                value={editProductData.name}
-                onChange={(e) =>
-                  setEditProductData({
-                    ...editProductData,
-                    name: e.target.value,
-                  })
+                if (value === "") {
+                  setShipmentData({ ...shipmentData, quantity: "" });
+                  return;
                 }
+
+                if (numValue > (selectedProduct?.stock || 0)) {
+                  toast.error(
+                    `Cannot exceed available stock of ${selectedProduct?.stock} units`
+                  );
+                  return;
+                }
+
+                if (numValue < 0) {
+                  return;
+                }
+
+                setShipmentData({ ...shipmentData, quantity: value });
+              }}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "-" ||
+                  e.key === "+" ||
+                  e.key === "." ||
+                  e.key === "e" ||
+                  e.key === "E"
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              onPaste={(e) => {
+                const pasteData = e.clipboardData.getData("text");
+                const numValue = parseInt(pasteData);
+                if (
+                  isNaN(numValue) ||
+                  numValue <= 0 ||
+                  numValue > (selectedProduct?.stock || 0)
+                ) {
+                  e.preventDefault();
+                  toast.error(
+                    `Quantity must be between 1 and ${selectedProduct?.stock} units`
+                  );
+                }
+              }}
+              max={selectedProduct?.stock}
+              min="1"
+            />
+            <p className="text-sm text-muted-foreground">
+              Available stock: {selectedProduct?.stock}
+            </p>
+          </div>
+
+          <div className="grid gap-2 relative">
+            <Label htmlFor="destination">Destination Address</Label>
+            <div className="relative">
+              <Input
+                id="destination"
+                placeholder="Start typing city or street..."
+                value={addressInput}
+                onChange={(e) => handleAddressChange(e.target.value)}
+                onFocus={() => addressInput.length > 1 && setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              />
+              {showDropdown && filteredAddresses.length > 0 && (
+                <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {filteredAddresses.map((address) => (
+                    <li
+                      key={address.id}
+                      className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+                      onMouseDown={() => {
+                        setAddressInput(address.fullAddress);
+                        setShipmentData({
+                          ...shipmentData,
+                          destination: address.fullAddress,
+                        });
+                        setShowDropdown(false);
+                      }}
+                    >
+                      <div className="font-medium text-sm">
+                        {address.barangay}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {address.city}, {address.province}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="driver">Select Driver</Label>
+            <Select
+              value={shipmentData.driverId}
+              onValueChange={(value) =>
+                setShipmentData({ ...shipmentData, driverId: value })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose delivery personnel" />
+              </SelectTrigger>
+              <SelectContent>
+                {deliveryPersonnel.map((driver) => (
+                  <SelectItem key={driver.id} value={driver.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{driver.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {driver.email}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="note">
+              Delivery Note (Optional)
+              <span className="text-xs text-muted-foreground ml-2">
+                {shipmentData.note.length}/100
+              </span>
+            </Label>
+            <Textarea
+              id="note"
+              placeholder="Special instructions for delivery personnel"
+              value={shipmentData.note}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setShipmentData({ ...shipmentData, note: value });
+                } else {
+                  toast.error("Note cannot exceed 100 characters");
+                }
+              }}
+              rows={3}
+              maxLength={100}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="estimatedDeliveryDate">
+                Estimated Delivery Date (Optional)
+              </Label>
+              <Input
+                id="estimatedDeliveryDate"
+                type="date"
+                value={shipmentData.estimatedDelivery?.split("T")[0] || ""}
+                onChange={(e) => {
+                  const date = e.target.value;
+                  const time =
+                    shipmentData.estimatedDelivery?.split("T")[1] || "00:00";
+                  setShipmentData({
+                    ...shipmentData,
+                    estimatedDelivery: date ? `${date}T${time}` : "",
+                  });
+                }}
+                min={new Date().toISOString().split("T")[0]}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-sku">SKU</Label>
+              <Label htmlFor="estimatedDeliveryTime">
+                Estimated Delivery Time (Optional)
+              </Label>
               <Input
-                id="edit-sku"
-                value={editProductData.sku}
-                onChange={(e) =>
-                  setEditProductData({
-                    ...editProductData,
-                    sku: e.target.value,
-                  })
-                }
+                id="estimatedDeliveryTime"
+                type="time"
+                value={shipmentData.estimatedDelivery?.split("T")[1] || ""}
+                onChange={(e) => {
+                  const time = e.target.value;
+                  const date =
+                    shipmentData.estimatedDelivery?.split("T")[0] ||
+                    new Date().toISOString().split("T")[0];
+                  setShipmentData({
+                    ...shipmentData,
+                    estimatedDelivery: time ? `${date}T${time}` : "",
+                  });
+                }}
               />
             </div>
+          </div>
+
+          {shipmentData.quantity && selectedProduct && (
+            <div className="mt-4 p-3 bg-muted rounded-lg">
+              <h4 className="font-semibold text-sm mb-2">Shipment Summary</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="text-muted-foreground">Product:</div>
+                <div className="font-medium">{selectedProduct.name}</div>
+
+                <div className="text-muted-foreground">Quantity:</div>
+                <div className="font-medium">{shipmentData.quantity} units</div>
+
+                <div className="text-muted-foreground">Remaining Stock:</div>
+                <div className="font-medium">
+                  {selectedProduct.stock -
+                    Number.parseInt(shipmentData.quantity)}{" "}
+                  units
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </CustomModal>
+
+      {/* ========== EDIT PRODUCT MODAL WITH VALIDATION ========== */}
+      <CustomModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setImageFile(null);
+          setImagePreview("");
+        }}
+        title="Edit Product"
+        description={`Make changes to ${selectedProduct?.name}`}
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditModal(false);
+                setImageFile(null);
+                setImagePreview("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmEdit} disabled={loading}>
+              {loading ? "Saving..." : "Save Changes"}
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="edit-name">
+              Product Name
+              <span className="text-xs text-muted-foreground ml-2">
+                {editProductData.name.length}/100
+              </span>
+            </Label>
+            <Input
+              id="edit-name"
+              value={editProductData.name}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setEditProductData({
+                    ...editProductData,
+                    name: value,
+                  });
+                } else {
+                  toast.error("Product name cannot exceed 100 characters");
+                }
+              }}
+              placeholder="Enter product name"
+              maxLength={100}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="edit-sku">
+              SKU
+              <span className="text-xs text-muted-foreground ml-2">
+                {editProductData.sku.length}/100
+              </span>
+            </Label>
+            <Input
+              id="edit-sku"
+              value={editProductData.sku}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setEditProductData({
+                    ...editProductData,
+                    sku: value,
+                  });
+                } else {
+                  toast.error("SKU cannot exceed 100 characters");
+                }
+              }}
+              placeholder="Product SKU"
+              maxLength={100}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="edit-category">Category</Label>
+            <div className="flex flex-col gap-1">
+              <Select
+                value={editProductData.category}
+                onValueChange={(value) =>
+                  setEditProductData({ ...editProductData, category: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="self-start p-0 h-auto text-xs"
+                onClick={() => setShowAddCategoryModal(true)}
+              >
+                + Add New Category
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* ========== EDIT PRICE INPUT WITH VALIDATION ========== */}
             <div className="grid gap-2">
-              <Label htmlFor="edit-price">Price</Label>
+              <Label htmlFor="edit-price">Price (₱)</Label>
               <Input
                 id="edit-price"
                 type="number"
@@ -1720,23 +2078,56 @@ export default function ProductManagement() {
                 max={MAX_PRICE}
                 value={editProductData.price}
                 onChange={(e) => {
-                  const value = parseFloat(e.target.value);
-                  if (value < 0) return;
-                  if (value > MAX_PRICE) {
+                  const value = e.target.value;
+                  const numValue = parseFloat(value);
+
+                  if (numValue > MAX_PRICE) {
                     toast.error(
                       `Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`
                     );
                     return;
                   }
+
+                  if (numValue < 0) {
+                    return;
+                  }
+
                   setEditProductData({
                     ...editProductData,
-                    price: e.target.value,
+                    price: value,
                   });
                 }}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "-" ||
+                    e.key === "+" ||
+                    e.key === "e" ||
+                    e.key === "E"
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
+                onPaste={(e) => {
+                  const pasteData = e.clipboardData.getData("text");
+                  const numValue = parseFloat(pasteData);
+                  if (
+                    isNaN(numValue) ||
+                    numValue < MIN_PRICE ||
+                    numValue > MAX_PRICE
+                  ) {
+                    e.preventDefault();
+                    toast.error(
+                      `Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`
+                    );
+                  }
+                }}
+                placeholder="0.00"
               />
             </div>
+
+            {/* ========== EDIT STOCK INPUT WITH VALIDATION ========== */}
             <div className="grid gap-2">
-              <Label htmlFor="edit-stock">Stock Quantity</Label>
+              <Label htmlFor="edit-stock">Stock</Label>
               <Input
                 id="edit-stock"
                 type="number"
@@ -1744,109 +2135,163 @@ export default function ProductManagement() {
                 max={MAX_STOCK}
                 value={editProductData.stock}
                 onChange={(e) => {
-                  const value = parseInt(e.target.value);
-                  if (value < 0) return;
-                  if (value > MAX_STOCK) {
+                  const value = e.target.value;
+                  const numValue = parseInt(value);
+
+                  if (value === "") {
+                    setEditProductData({
+                      ...editProductData,
+                      stock: "",
+                    });
+                    return;
+                  }
+
+                  if (numValue > MAX_STOCK) {
                     toast.error(`Stock cannot exceed ${MAX_STOCK} units`);
                     return;
                   }
+
+                  if (numValue < 0) {
+                    return;
+                  }
+
                   setEditProductData({
                     ...editProductData,
-                    stock: e.target.value,
+                    stock: value,
                   });
                 }}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-category">Category</Label>
-              <div className="flex flex-col gap-1">
-                <Select
-                  value={editProductData.category}
-                  onValueChange={(value) =>
-                    setEditProductData({ ...editProductData, category: value })
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "-" ||
+                    e.key === "+" ||
+                    e.key === "." ||
+                    e.key === "e" ||
+                    e.key === "E"
+                  ) {
+                    e.preventDefault();
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="self-start p-0 h-auto text-xs"
-                  onClick={() => setShowAddCategoryModal(true)}
-                >
-                  + Add New Category
-                </Button>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                value={editProductData.description}
-                onChange={(e) =>
-                  setEditProductData({
-                    ...editProductData,
-                    description: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-image">Image URL</Label>
-              <Input
-                id="edit-image"
-                value={editProductData.image || ""}
-                onChange={(e) =>
-                  setEditProductData({
-                    ...editProductData,
-                    image: e.target.value,
-                  })
-                }
+                }}
+                onPaste={(e) => {
+                  const pasteData = e.clipboardData.getData("text");
+                  const numValue = parseInt(pasteData);
+                  if (
+                    isNaN(numValue) ||
+                    numValue < MIN_STOCK ||
+                    numValue > MAX_STOCK
+                  ) {
+                    e.preventDefault();
+                    toast.error(
+                      `Stock must be between ${MIN_STOCK} and ${MAX_STOCK} units`
+                    );
+                  }
+                }}
+                placeholder="0"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmEdit}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Delete Product Modal */}
-      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <Trash2 className="h-5 w-5" />
-              Delete Product
-            </DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {selectedProduct?.name}? This
-              action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete Product
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-description">
+              Description
+              <span className="text-xs text-muted-foreground ml-2">
+                {(editProductData.description || "").length}/100
+              </span>
+            </Label>
+            <Textarea
+              id="edit-description"
+              value={editProductData.description}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setEditProductData({
+                    ...editProductData,
+                    description: value,
+                  });
+                } else {
+                  toast.error("Description cannot exceed 100 characters");
+                }
+              }}
+              placeholder="Product description"
+              rows={3}
+              maxLength={100}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="edit-image">Product Image</Label>
+            <Input
+              id="edit-image"
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setImageFile(file);
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const base64String = reader.result as string;
+                    setImagePreview(base64String);
+                    setEditProductData({
+                      ...editProductData,
+                      image: base64String,
+                    });
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Upload a new image or keep the existing one
+            </p>
+          </div>
+
+          {/* Image Preview */}
+          {(imagePreview || editProductData.image) && (
+            <div className="grid gap-2">
+              <Label>Image Preview</Label>
+              <div className="relative w-full h-48 border rounded-md overflow-hidden bg-gray-50">
+                <Image
+                  src={imagePreview || editProductData.image || ""}
+                  alt="Product preview"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              {(imagePreview || editProductData.image) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setImageFile(null);
+                    setImagePreview("");
+                    setEditProductData({
+                      ...editProductData,
+                      image: "",
+                    });
+                  }}
+                  className="w-fit"
+                >
+                  Remove Image
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </CustomModal>
+
+      {/* Delete Confirmation dialog */}
+      <CustomDialog
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete Product"
+        description={`Are you sure you want to delete "${selectedProduct?.name}"? This action cannot be undone and will permanently remove the product from your inventory.`}
+        confirmText="Delete Product"
+        cancelText="Cancel"
+        variant="danger"
+        loading={loading}
+      />
     </div>
   );
 }
