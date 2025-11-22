@@ -45,7 +45,6 @@ export const auth = betterAuth({
       ? process.env.NEXT_PUBLIC_URL!
       : process.env.BETTER_AUTH_URL!,
     process.env.NEXT_PUBLIC_URL || "https://www.lgwhardware.online",
-    "http://192.168.1.144:3000",
   ],
   appName: "LGW Warehouse",
   rateLimit: {

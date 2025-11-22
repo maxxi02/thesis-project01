@@ -9,7 +9,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Box } from "lucide-react";
+import { Box, Clock } from "lucide-react";
 import { NavProducts } from "../../_components/nav-products";
 import { NavDashboard } from "../../_components/nav-dashboard";
 import { NavAdmin } from "../../_components/nav-admin";
@@ -218,17 +218,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {filteredData.dashboard.length > 0 && (
-          <NavDashboard items={filteredData.dashboard} />
-        )}
-        {filteredData.deliveries.length > 0 && (
-          <NavDashboard items={filteredData.deliveries} />
-        )}
-        {filteredData.products.length > 0 && (
-          <NavProducts items={filteredData.products} />
-        )}
-        {filteredData.admin.length > 0 && (
-          <NavAdmin items={filteredData.admin} />
+        {userRole === "user" ? (
+          <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+            <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="font-semibold text-sm mb-2">
+              Role Assignment Pending
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Your account is waiting for a role to be assigned. Please contact
+              an administrator or wait for your role assignment.
+            </p>
+          </div>
+        ) : (
+          <>
+            {filteredData.dashboard.length > 0 && (
+              <NavDashboard items={filteredData.dashboard} />
+            )}
+            {filteredData.deliveries.length > 0 && (
+              <NavDashboard items={filteredData.deliveries} />
+            )}
+            {filteredData.products.length > 0 && (
+              <NavProducts items={filteredData.products} />
+            )}
+            {filteredData.admin.length > 0 && (
+              <NavAdmin items={filteredData.admin} />
+            )}
+          </>
         )}
       </SidebarContent>
       <SidebarFooter>
