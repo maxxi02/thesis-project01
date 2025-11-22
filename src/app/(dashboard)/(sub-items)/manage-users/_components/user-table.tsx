@@ -21,7 +21,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   User,
   MoreVertical,
-  Mail,
   Trash2,
   Ban,
   UserCheck,
