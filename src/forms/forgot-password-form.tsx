@@ -44,6 +44,26 @@ export function ForgotPasswordForm({
       setIsLoading(true);
       const { email } = values;
 
+      // First, verify if the email exists in the system
+      const verifyResponse = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyResponse.ok || !verifyData.exists) {
+        toast.error("Error", {
+          description: "No account found with this email address",
+          richColors: true,
+        });
+        return;
+      }
+
+      // If email exists, proceed with password reset
       await authClient.forgetPassword({
         email: email,
         redirectTo: "/reset-password",
