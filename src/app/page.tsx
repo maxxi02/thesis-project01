@@ -393,9 +393,9 @@ const Home = () => {
       <section
         id="contact"
         ref={contactRef}
-        className="px-6 md:px-12 py-16 md:py-24 text-center bg-gradient-to-b from-card to-muted/50 border-t border-border scroll-mt-20 relative overflow-hidden"
+        className="px-6 md:px-12 py-16 md:py-24 text-center bg-card border-t border-border scroll-mt-20 relative overflow-hidden"
       >
-        {/* Subtle background pattern or wave for design flair */}
+        {/* Subtle background pattern */}
         <div className="absolute inset-0 opacity-5">
           <svg
             className="w-full h-full"
@@ -421,7 +421,7 @@ const Home = () => {
 
         <div className="max-w-2xl mx-auto relative z-10">
           <div className="mb-8">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
               Get In Touch
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
@@ -433,48 +433,59 @@ const Home = () => {
           {/* Contact Methods with Icons */}
           <div className="flex flex-col md:flex-row gap-8 justify-center mb-12">
             {/* Email */}
-            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-              <Mail className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-semibold text-foreground text-sm">Email</h3>
-              <Link
-                href="mailto:info@lgw.com"
-                className="text-primary hover:text-primary/80 transition text-sm font-medium"
-              >
-                lgwhardware@gmail.com
+            <Button
+              variant="ghost"
+              className="flex flex-col items-center gap-2 p-6 h-auto bg-muted/50 hover:bg-muted transition-colors"
+              asChild
+            >
+              <Link href="mailto:lgwhardware@gmail.com">
+                <Mail className="h-8 w-8 text-primary mb-2" />
+                <h3 className="font-semibold text-foreground text-sm">Email</h3>
+                <span className="text-primary hover:text-primary/80 transition text-sm font-medium">
+                  lgwhardware@gmail.com
+                </span>
               </Link>
-            </div>
+            </Button>
 
-            {/* Add Phone (example) */}
-            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-              <Phone className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-semibold text-foreground text-sm">Phone</h3>
-              <Link
-                href="tel:+1234567890"
-                className="text-primary hover:text-primary/80 transition text-sm font-medium"
-              >
-                09936090374
+            {/* Phone */}
+            <Button
+              variant="ghost"
+              className="flex flex-col items-center gap-2 p-6 h-auto bg-muted/50 hover:bg-muted transition-colors"
+              asChild
+            >
+              <Link href="tel:09936090374">
+                <Phone className="h-8 w-8 text-primary mb-2" />
+                <h3 className="font-semibold text-foreground text-sm">Phone</h3>
+                <span className="text-primary hover:text-primary/80 transition text-sm font-medium">
+                  09936090374
+                </span>
               </Link>
-            </div>
-            {/*facebook */}
-            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-              <FaFacebook className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-semibold text-foreground text-sm">
-                Facebook
-              </h3>
-              <Link
-                href="tel:+1234567890"
-                className="text-primary hover:text-primary/80 transition text-sm font-medium"
-              >
-                LGW Hardware
+            </Button>
+
+            {/* Facebook */}
+            <Button
+              variant="ghost"
+              className="flex flex-col items-center gap-2 p-6 h-auto bg-muted/50 hover:bg-muted transition-colors"
+              asChild
+            >
+              <Link href="https://facebook.com" target="_blank">
+                <FaFacebook className="h-8 w-8 text-primary mb-2" />
+                <h3 className="font-semibold text-foreground text-sm">
+                  Facebook
+                </h3>
+                <span className="text-primary hover:text-primary/80 transition text-sm font-medium">
+                  LGW Hardware
+                </span>
               </Link>
-            </div>
+            </Button>
           </div>
+
           {/* CTA Button */}
           {session ? (
             <Button
               asChild
               size="lg"
-              className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all duration-300 transform hover:scale-105"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all duration-300"
             >
               <Link href="/dashboard">Get Started</Link>
             </Button>
@@ -482,7 +493,7 @@ const Home = () => {
             <Button
               asChild
               size="lg"
-              className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all duration-300 transform hover:scale-105"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all duration-300"
             >
               <Link href="/sign-in">Get Started</Link>
             </Button>

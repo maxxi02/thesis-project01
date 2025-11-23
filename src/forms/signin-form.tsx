@@ -74,6 +74,8 @@ export function SigninForm({
   const [countdown, setCountdown] = useState(0);
   const [isResending, setIsResending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
 
   const form = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
@@ -101,6 +103,18 @@ export function SigninForm({
     }
   }, [countdown]);
 
+  useEffect(() => {
+    if (rateLimitCountdown > 0) {
+      const timer = setTimeout(
+        () => setRateLimitCountdown(rateLimitCountdown - 1),
+        1000
+      );
+      return () => clearTimeout(timer);
+    } else if (rateLimitCountdown === 0 && isRateLimited) {
+      setIsRateLimited(false);
+    }
+  }, [rateLimitCountdown, isRateLimited]);
+
   // Helper function to format retry time
   const formatRetryTime = (seconds: number) => {
     if (seconds >= 60) {
@@ -113,6 +127,17 @@ export function SigninForm({
   async function onSubmit(values: z.infer<typeof signInSchema>) {
     try {
       const { email, password } = values;
+
+      // Check if currently rate limited
+      if (isRateLimited) {
+        toast.error("Account Locked", {
+          description: `Too many login attempts. Please try again in ${formatRetryTime(
+            rateLimitCountdown
+          )}.`,
+          richColors: true,
+        });
+        return;
+      }
 
       // Check email-based rate limit before attempting sign-in
       const rateLimitKey = `email-signin:${email}`;
@@ -128,9 +153,11 @@ export function SigninForm({
 
       if (!rateLimitCheck.ok) {
         const data = await rateLimitCheck.json();
+        setIsRateLimited(true);
+        setRateLimitCountdown(data.retryAfter || RATE_LIMIT_WINDOW);
         toast.error("Too Many Attempts", {
           description: `Too many login attempts for this email. Please try again in ${formatRetryTime(
-            data.retryAfter
+            data.retryAfter || RATE_LIMIT_WINDOW
           )}.`,
           richColors: true,
         });
@@ -147,6 +174,8 @@ export function SigninForm({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ key: rateLimitKey }),
             });
+            setIsRateLimited(false);
+            setRateLimitCountdown(0);
 
             if (ctx.data.twoFactorRedirect) {
               setEmail(email);
@@ -157,11 +186,18 @@ export function SigninForm({
           },
           onError: async (ctx) => {
             // Increment rate limit on failed login
-            await fetch("/api/increment-rate-limit", {
+            const incrementResponse = await fetch("/api/increment-rate-limit", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ key: rateLimitKey }),
             });
+
+            // Check if rate limit was exceeded after this attempt
+            if (incrementResponse.status === 429) {
+              const data = await incrementResponse.json();
+              setIsRateLimited(true);
+              setRateLimitCountdown(data.retryAfter || RATE_LIMIT_WINDOW);
+            }
 
             if (ctx.error.status === 403) {
               toast.error("Please verify your email address");
@@ -170,11 +206,14 @@ export function SigninForm({
                 callbackURL: "/sign-in",
               });
               toast.success("Verification email sent!");
-            }
-
-            if (ctx.error.status === 429) {
+            } else if (
+              ctx.error.status === 429 ||
+              incrementResponse.status === 429
+            ) {
               toast.error("Too Many Attempts", {
-                description: "Too many login attempts. Please try again later.",
+                description: `Too many login attempts. Please try again in ${formatRetryTime(
+                  rateLimitCountdown
+                )}.`,
                 richColors: true,
               });
             } else {
@@ -288,6 +327,16 @@ export function SigninForm({
           Enter your email below to login to your account
         </p>
       </div>
+
+      {/* Rate Limit Countdown Display */}
+      {isRateLimited && rateLimitCountdown > 0 && (
+        <div className="bg-destructive/15 border border-destructive/20 rounded-lg p-4">
+          <p className="text-destructive text-center text-sm font-medium">
+            Account locked for {formatRetryTime(rateLimitCountdown)}
+          </p>
+        </div>
+      )}
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6">
           <FormField
@@ -301,6 +350,7 @@ export function SigninForm({
                     type="email"
                     placeholder="nivekamures@example.com"
                     {...field}
+                    disabled={isRateLimited}
                   />
                 </FormControl>
                 <FormMessage />
@@ -322,22 +372,34 @@ export function SigninForm({
                   </Link>
                 </div>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••••" {...field} />
+                  <Input
+                    type="password"
+                    placeholder="••••••••••"
+                    {...field}
+                    disabled={isRateLimited}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+          <Button
+            type="submit"
+            disabled={isSubmitting || isRateLimited}
+            className="w-full"
+          >
             {isSubmitting ? (
               <Loader2 className="animate-spin mx-auto" />
+            ) : isRateLimited ? (
+              "Account Locked"
             ) : (
               "Login"
             )}
           </Button>
         </form>
       </Form>
-      {/* 2FA Dialog */}
+
+      {/* Rest of your 2FA dialog code remains the same */}
       <Dialog open={show2FAModal} onOpenChange={setShow2FAModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -429,7 +491,7 @@ export function SigninForm({
                       variant="ghost"
                       onClick={handleResendCode}
                       disabled={countdown > 0 || isResending}
-                      className="text-sm"
+                      className="text-sm w-full"
                     >
                       {isResending
                         ? "Sending..."
@@ -437,6 +499,12 @@ export function SigninForm({
                         ? `Resend code in ${countdown}s`
                         : "Resend verification code"}
                     </Button>
+                    {countdown > 0 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        You can resend the code in {countdown} second
+                        {countdown !== 1 ? "s" : ""}
+                      </p>
+                    )}
                   </div>
                 )}
               </>
