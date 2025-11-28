@@ -36,6 +36,7 @@ import { Session } from "@/better-auth/auth-types";
 import { NotificationHelper } from "../../../../../notification/notification-helper";
 import { getServerSession } from "@/better-auth/action";
 import dynamic from "next/dynamic";
+import { CoordinatesResponse } from "@/types/coordinates";
 
 const DeliveryMap = dynamic(() => import("../_components/delivery-map"), {
   ssr: false,
@@ -160,8 +161,8 @@ function DeliveryNotification({
           assignment.status === "in-transit"
             ? "border-l-blue-500 bg-blue-50/30"
             : isUrgent(assignment.estimatedDelivery)
-            ? "border-l-orange-500 bg-orange-50/30"
-            : "border-l-gray-300"
+              ? "border-l-orange-500 bg-orange-50/30"
+              : "border-l-gray-300"
         }`}
         onClick={onToggleExpand}
       >
@@ -464,6 +465,34 @@ export default function DeliveryAssignments() {
   } | null>(null);
   const sseConnectionRef = useRef<EventSource | null>(null);
 
+  // Add this function inside the DeliveryAssignments component
+  const fetchCoordinatesForAssignment = async (
+    address: string
+  ): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      console.log("📍 [ASSIGNMENTS] Fetching coordinates for:", address);
+
+      const response = await fetch("/api/locations/coordinates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+
+      const data: CoordinatesResponse = await response.json();
+
+      if (data.success && data.coordinates) {
+        console.log("✅ [ASSIGNMENTS] Coordinates found:", data.coordinates);
+        return data.coordinates;
+      }
+
+      console.warn("⚠️ [ASSIGNMENTS] No coordinates found for:", address);
+      return null;
+    } catch (error) {
+      console.error("❌ [ASSIGNMENTS] Error fetching coordinates:", error);
+      return null;
+    }
+  };
+
   const [archivedCount, setArchivedCount] = useState(0);
 
   const fetchArchivedCount = async (userEmail: string) => {
@@ -489,7 +518,7 @@ export default function DeliveryAssignments() {
       `/api/sse?userId=${userId}&userEmail=${encodeURIComponent(userEmail)}`
     );
     sseConnectionRef.current = connection;
-    connection.onmessage = (event) => {
+    connection.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
         switch (data.type) {
@@ -514,13 +543,23 @@ export default function DeliveryAssignments() {
               description: `You have been assigned to deliver ${data.data.productName}`,
             });
             if (userSession?.user.email) {
-              fetchAssignments(userSession.user.email);
+              await fetchAssignments(userSession.user.email);
             }
-            if (data.data.coordinates?.lat && data.data.coordinates?.lng) {
+
+            // If coordinates are provided, use them; otherwise fetch them
+            let coordinates = data.data.coordinates;
+            if (!coordinates?.lat || !coordinates?.lng) {
+              console.log("📍 [SSE] No coordinates in SSE data, fetching...");
+              coordinates = await fetchCoordinatesForAssignment(
+                data.data.destination
+              );
+            }
+
+            if (coordinates?.lat && coordinates?.lng) {
               setSelectedMapLocation({
                 id: data.data.assignmentId,
-                lat: data.data.coordinates.lat,
-                lng: data.data.coordinates.lng,
+                lat: coordinates.lat,
+                lng: coordinates.lng,
                 name: data.data.productName,
                 address: data.data.destination,
               });
@@ -603,9 +642,53 @@ export default function DeliveryAssignments() {
               assignment.driver.email === userEmail
           )
         : data.driver.email === userEmail
-        ? [data]
-        : [];
-      setAssignments(validAssignments);
+          ? [data]
+          : [];
+
+      // Fetch coordinates for assignments that don't have them
+      const assignmentsWithCoordinates = await Promise.all(
+        validAssignments.map(async (assignment: DeliveryAssignment) => {
+          // If coordinates already exist, return as-is
+          if (
+            assignment.customerAddress.coordinates?.lat &&
+            assignment.customerAddress.coordinates?.lng
+          ) {
+            console.log(
+              "✅ [ASSIGNMENTS] Assignment already has coordinates:",
+              assignment.id
+            );
+            return assignment;
+          }
+
+          // Fetch coordinates using the new API
+          console.log(
+            "📍 [ASSIGNMENTS] Fetching coordinates for assignment:",
+            assignment.id
+          );
+          const coordinates = await fetchCoordinatesForAssignment(
+            assignment.customerAddress.destination
+          );
+
+          // Return assignment with fetched coordinates
+          return {
+            ...assignment,
+            customerAddress: {
+              ...assignment.customerAddress,
+              coordinates: coordinates || undefined,
+            },
+          };
+        })
+      );
+
+      console.log(
+        "📍 [ASSIGNMENTS] Final assignments with coordinates:",
+        assignmentsWithCoordinates.map((a) => ({
+          id: a.id,
+          hasCoordinates: !!a.customerAddress.coordinates,
+        }))
+      );
+
+      setAssignments(assignmentsWithCoordinates);
     } catch (error) {
       console.error("Error fetching assignments:", error);
       setAssignments([]);
