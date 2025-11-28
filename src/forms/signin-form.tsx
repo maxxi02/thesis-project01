@@ -115,13 +115,9 @@ export function SigninForm({
     }
   }, [rateLimitCountdown, isRateLimited]);
 
-  // Helper function to format retry time
+  // Helper function to format retry time - always show seconds
   const formatRetryTime = (seconds: number) => {
-    if (seconds >= 60) {
-      const minutes = Math.ceil(seconds / 60);
-      return `${minutes} minute${minutes > 1 ? "s" : ""}`;
-    }
-    return `${seconds} second${seconds > 1 ? "s" : ""}`;
+    return `${seconds} second${seconds !== 1 ? "s" : ""}`;
   };
 
   async function onSubmit(values: z.infer<typeof signInSchema>) {
