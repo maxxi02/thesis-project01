@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/database/mongodb";
 import { ToShip } from "@/models/toship";
 import { ArchivedDelivery } from "@/models/archived-delivery";
-import { ProductHistory } from "@/models/product-history"; // Add this import
-import { Product } from "@/models/product"; // Add this import
+import { ProductHistory } from "@/models/product-history";
+import { Product } from "@/models/product";
 import { sendEventToUser } from "@/sse/sse";
 import mongoose from "mongoose";
 
@@ -61,7 +61,7 @@ export async function PATCH(
     if (status === "delivered" && !delivery.deliveredAt) {
       delivery.deliveredAt = now;
 
-      // ✅ ADDED: Update product history when delivery is completed
+      // ✅ Update product history when delivery is completed
       const productHistoryEntry = await ProductHistory.findOne({
         shipmentId: delivery._id,
         status: "pending"
@@ -104,7 +104,7 @@ export async function PATCH(
     } else if (status === "cancelled") {
       delivery.cancelledAt = now;
 
-      // ✅ ADDED: Update product history when delivery is cancelled
+      // ✅ Update product history when delivery is cancelled
       const productHistoryEntry = await ProductHistory.findOne({
         shipmentId: delivery._id,
         status: "pending"
@@ -134,8 +134,8 @@ export async function PATCH(
           throw new Error("Missing delivery personnel ID");
         }
 
-        // Create archived delivery
-        await ArchivedDelivery.create([{
+        // ✅ FIX: Handle null destinationCoordinates properly
+        const archiveData = {
           originalId: delivery._id,
           productId: productId,
           productName: delivery.productName,
@@ -143,7 +143,15 @@ export async function PATCH(
           productSku: delivery.productSku,
           quantity: delivery.quantity,
           destination: delivery.destination,
-          destinationCoordinates: delivery.destinationCoordinates,
+          // ✅ FIX: Only include destinationCoordinates if it's not null and has valid data
+          destinationCoordinates: delivery.destinationCoordinates && 
+                                 delivery.destinationCoordinates.lat && 
+                                 delivery.destinationCoordinates.lng
+            ? {
+                lat: delivery.destinationCoordinates.lat,
+                lng: delivery.destinationCoordinates.lng,
+              }
+            : undefined, // Use undefined instead of null
           deliveryPersonnel: {
             id: deliveryPersonnelId,
             fullName: delivery.deliveryPersonnel.fullName,
@@ -157,7 +165,14 @@ export async function PATCH(
           estimatedDelivery: delivery.estimatedDelivery,
           markedBy: delivery.markedBy,
           archivedAt: new Date(),
-        }], { session });
+        };
+
+        // Remove undefined fields to avoid validation errors
+        const cleanArchiveData = Object.fromEntries(
+          Object.entries(archiveData).filter(([_, value]) => value !== undefined)
+        );
+
+        await ArchivedDelivery.create([cleanArchiveData], { session });
 
         // Delete from active deliveries
         await ToShip.findByIdAndDelete(delivery._id).session(session);
@@ -167,8 +182,17 @@ export async function PATCH(
       } catch (archiveError) {
         await session.abortTransaction();
         console.error(`Failed to archive delivery ${delivery._id}:`, archiveError);
+        
+        // More detailed error logging
+        if (archiveError instanceof mongoose.Error.ValidationError) {
+          console.error('Validation errors:', archiveError.errors);
+        }
+        
         return NextResponse.json(
-          { error: "Failed to archive delivery" },
+          { 
+            error: "Failed to archive delivery",
+            details: archiveError instanceof Error ? archiveError.message : "Unknown error"
+          },
           { status: 500 }
         );
       }
@@ -261,7 +285,7 @@ export async function PATCH(
     return NextResponse.json({
       message: "Delivery status updated successfully",
       delivery: responseDelivery,
-      historyUpdated: status === "delivered" || status === "cancelled", // ✅ ADDED: Indicate history was updated
+      historyUpdated: status === "delivered" || status === "cancelled",
     });
 
   } catch (error) {
@@ -269,127 +293,10 @@ export async function PATCH(
     await session.abortTransaction();
     console.error("Error updating delivery status:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  } finally {
-    session.endSession();
-  }
-}
-
-// GET method for fetching single delivery
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    await connectDB();
-    const { id } = await params;
-
-    const delivery = await ToShip.findById(id);
-    if (!delivery) {
-      return NextResponse.json(
-        { error: "Delivery not found" },
-        { status: 404 }
-      );
-    }
-
-    const responseDelivery = {
-      id: delivery._id.toString(),
-      product: {
-        id: delivery.productId,
-        name: delivery.productName,
-        image: delivery.productImage,
-        quantity: delivery.quantity,
-        sku: delivery.productSku,
+      { 
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error"
       },
-      customerAddress: {
-        destination: delivery.destination,
-        coordinates: delivery.destinationCoordinates
-          ? {
-              lat: delivery.destinationCoordinates.lat,
-              lng: delivery.destinationCoordinates.lng,
-            }
-          : undefined,
-      },
-      driver: {
-        id: delivery.deliveryPersonnel.id,
-        fullName: delivery.deliveryPersonnel.fullName,
-        email: delivery.deliveryPersonnel.email,
-      },
-      status: delivery.status,
-      note: delivery.note || undefined,
-      assignedDate: delivery.createdAt,
-      startedAt: delivery.startedAt || undefined,
-      deliveredAt: delivery.deliveredAt || undefined,
-      estimatedDelivery: delivery.estimatedDelivery || undefined,
-      markedBy: {
-        name: delivery.markedBy.name,
-        email: delivery.markedBy.email,
-        role: delivery.markedBy.role,
-      },
-    };
-
-    return NextResponse.json({ delivery: responseDelivery });
-  } catch (error) {
-    console.error("Error fetching delivery:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE method for cancelling delivery (admin only)
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await mongoose.startSession();
-
-  try {
-    await connectDB();
-    const { id } = await params;
-
-    session.startTransaction();
-
-    const delivery = await ToShip.findById(id).session(session);
-    if (!delivery) {
-      await session.abortTransaction();
-      return NextResponse.json(
-        { error: "Delivery not found" },
-        { status: 404 }
-      );
-    }
-
-    // ✅ ADDED: Update product history when delivery is deleted/cancelled
-    const productHistoryEntry = await ProductHistory.findOne({
-      shipmentId: delivery._id,
-      status: "pending"
-    }).session(session);
-
-    if (productHistoryEntry) {
-      productHistoryEntry.status = "cancelled";
-      productHistoryEntry.cancelledAt = new Date();
-      await productHistoryEntry.save({ session });
-      console.log(`✅ Updated product history entry ${productHistoryEntry._id} to cancelled`);
-    }
-
-    // Delete the delivery
-    await ToShip.findByIdAndDelete(id).session(session);
-
-    await session.commitTransaction();
-
-    return NextResponse.json({
-      message: "Delivery cancelled successfully",
-      historyUpdated: true, // ✅ ADDED: Indicate history was updated
-    });
-
-  } catch (error) {
-    await session.abortTransaction();
-    console.error("Error cancelling delivery:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
       { status: 500 }
     );
   } finally {

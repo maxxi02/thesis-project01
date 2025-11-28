@@ -214,31 +214,29 @@ const ProductHistoryView = () => {
   ]);
 
   // Fetch statistics
-  const fetchStats = async () => {
-    try {
-      setStatsLoading(true);
-      const params = new URLSearchParams();
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      if (selectedCategory && selectedCategory !== "all")
-        params.append("category", selectedCategory);
+const fetchStats = async () => {
+  try {
+    setStatsLoading(true);
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    if (selectedCategory && selectedCategory !== "all")
+      params.append("category", selectedCategory);
 
-      const response = await fetch(
-        `/api/product-history?action=stats&${params.toString()}`
-      );
-      const data = await response.json();
-
-      if (response.ok) {
-        setStats(data);
-      } else {
-        console.error("Error fetching stats:", data.error);
-      }
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    } finally {
-      setStatsLoading(false);
+    const response = await fetch(`/api/product-history?action=stats&${params.toString()}`);
+    const data = await response.json();
+    
+    if (response.ok) {
+      setStats(data);
+    } else {
+      console.error("Error fetching stats:", data.error);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+  } finally {
+    setStatsLoading(false);
+  }
+};
 
   // Clear product history (admin only)
   const clearProductHistory = async () => {
@@ -308,9 +306,7 @@ const ProductHistoryView = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `product-history-${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
+    a.download = `product-history-${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -342,14 +338,7 @@ const ProductHistoryView = () => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [
-    searchTerm,
-    startDate,
-    endDate,
-    selectedCategory,
-    selectedStatus,
-    fetchHistory,
-  ]);
+  }, [searchTerm, startDate, endDate, selectedCategory, selectedStatus, fetchHistory]);
 
   // Handle pagination
   const handlePageChange = (newPage: number) => {
@@ -388,12 +377,7 @@ const ProductHistoryView = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportToCSV}
-            disabled={!history.length}
-          >
+          <Button variant="outline" size="sm" onClick={exportToCSV} disabled={!history.length}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -433,9 +417,7 @@ const ProductHistoryView = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Monthly Revenue
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -459,9 +441,7 @@ const ProductHistoryView = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Weekly Revenue
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Weekly Revenue</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -485,9 +465,7 @@ const ProductHistoryView = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Avg Sale Value
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Avg Sale Value</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -500,10 +478,8 @@ const ProductHistoryView = () => {
               <>
                 <div className="text-2xl font-bold">
                   {formatCurrency(
-                    stats?.monthlyStats?.totalTransactions &&
-                      stats.monthlyStats.totalSales
-                      ? stats.monthlyStats.totalSales /
-                          stats.monthlyStats.totalTransactions
+                    stats?.monthlyStats?.totalTransactions && stats.monthlyStats.totalSales
+                      ? stats.monthlyStats.totalSales / stats.monthlyStats.totalTransactions
                       : 0
                   )}
                 </div>
@@ -515,9 +491,7 @@ const ProductHistoryView = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Yearly Revenue
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Yearly Revenue</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -556,10 +530,7 @@ const ProductHistoryView = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <div className="space-y-2">
-              <label
-                htmlFor={searchInputId}
-                className="text-sm font-medium block"
-              >
+              <label htmlFor={searchInputId} className="text-sm font-medium block">
                 Search Products
               </label>
               <div className="relative">
@@ -575,10 +546,7 @@ const ProductHistoryView = () => {
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor={startDateId}
-                className="text-sm font-medium block"
-              >
+              <label htmlFor={startDateId} className="text-sm font-medium block">
                 Start Date
               </label>
               <Input
@@ -602,16 +570,10 @@ const ProductHistoryView = () => {
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor={categorySelectId}
-                className="text-sm font-medium block"
-              >
+              <label htmlFor={categorySelectId} className="text-sm font-medium block">
                 Category
               </label>
-              <Select
-                value={selectedCategory}
-                onValueChange={setSelectedCategory}
-              >
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger id={categorySelectId}>
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
@@ -627,10 +589,7 @@ const ProductHistoryView = () => {
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor={statusSelectId}
-                className="text-sm font-medium block"
-              >
+              <label htmlFor={statusSelectId} className="text-sm font-medium block">
                 Status
               </label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -776,10 +735,7 @@ const ProductHistoryView = () => {
                           {formatCurrency(item.totalAmount)}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={getSaleTypeVariant(item.saleType)}
-                            className="capitalize"
-                          >
+                          <Badge variant={getSaleTypeVariant(item.saleType)} className="capitalize">
                             {item.saleType}
                           </Badge>
                         </TableCell>
@@ -788,8 +744,7 @@ const ProductHistoryView = () => {
                             variant={getStatusVariant(item.status)}
                             className="capitalize"
                           >
-                            {(item.status === "completed" ||
-                              item.status === "delivered") && (
+                            {(item.status === "completed" || item.status === "delivered") && (
                               <CheckCircle className="h-3 w-3 mr-1" />
                             )}
                             {item.status}
@@ -894,17 +849,11 @@ const ProductHistoryView = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Units Sold:</span>
-                      <span className="font-medium">
-                        {category.totalQuantity}
-                      </span>
+                      <span className="font-medium">{category.totalQuantity}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Transactions:
-                      </span>
-                      <span className="font-medium">
-                        {category.transactionCount}
-                      </span>
+                      <span className="text-muted-foreground">Transactions:</span>
+                      <span className="font-medium">{category.transactionCount}</span>
                     </div>
                   </div>
                 </div>
@@ -920,8 +869,8 @@ const ProductHistoryView = () => {
           <DialogHeader>
             <DialogTitle>Clear Product History</DialogTitle>
             <DialogDescription>
-              This action will permanently delete all sales and delivery history
-              records. This cannot be undone. Are you sure you want to continue?
+              This action will permanently delete all sales and delivery history records.
+              This cannot be undone. Are you sure you want to continue?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

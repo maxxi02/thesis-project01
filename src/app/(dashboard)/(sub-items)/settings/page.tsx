@@ -24,7 +24,7 @@ export default async function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="account" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            <span className="hidden sm:inline">Account</span>
+            <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
 
           <TabsTrigger value="preferences" className="flex items-center gap-2">
