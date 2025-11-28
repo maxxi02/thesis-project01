@@ -60,6 +60,34 @@ const RATE_LIMIT_WINDOW =
 
 const RATE_LIMIT_MAX_ATTEMPTS = 5;
 
+// Helper function to format time in MM:SS or seconds
+const formatRetryTime = (seconds: number) => {
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  }
+  return `${seconds} second${seconds !== 1 ? "s" : ""}`;
+};
+
+// Helper function to get formatted time for display
+const getFormattedTime = (seconds: number) => {
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return {
+      display: `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`,
+      minutes,
+      seconds: remainingSeconds,
+    };
+  }
+  return {
+    display: `${seconds} second${seconds !== 1 ? "s" : ""}`,
+    minutes: 0,
+    seconds,
+  };
+};
+
 export function SigninForm({
   className,
   ...props
@@ -76,6 +104,11 @@ export function SigninForm({
   const [isVerifying, setIsVerifying] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
+  const [formattedTime, setFormattedTime] = useState({
+    display: "",
+    minutes: 0,
+    seconds: 0,
+  });
 
   const form = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
@@ -105,20 +138,24 @@ export function SigninForm({
 
   useEffect(() => {
     if (rateLimitCountdown > 0) {
-      const timer = setTimeout(
-        () => setRateLimitCountdown(rateLimitCountdown - 1),
-        1000
-      );
+      const timer = setTimeout(() => {
+        const newCountdown = rateLimitCountdown - 1;
+        setRateLimitCountdown(newCountdown);
+        setFormattedTime(getFormattedTime(newCountdown));
+      }, 1000);
       return () => clearTimeout(timer);
     } else if (rateLimitCountdown === 0 && isRateLimited) {
       setIsRateLimited(false);
+      setFormattedTime({ display: "", minutes: 0, seconds: 0 });
     }
   }, [rateLimitCountdown, isRateLimited]);
 
-  // Helper function to format retry time - always show seconds
-  const formatRetryTime = (seconds: number) => {
-    return `${seconds} second${seconds !== 1 ? "s" : ""}`;
-  };
+  // Initialize formatted time when rate limit countdown changes
+  useEffect(() => {
+    if (rateLimitCountdown > 0) {
+      setFormattedTime(getFormattedTime(rateLimitCountdown));
+    }
+  }, [rateLimitCountdown]);
 
   async function onSubmit(values: z.infer<typeof signInSchema>) {
     try {
@@ -127,9 +164,7 @@ export function SigninForm({
       // Check if currently rate limited
       if (isRateLimited) {
         toast.error("Account Locked", {
-          description: `Too many login attempts. Please try again in ${formatRetryTime(
-            rateLimitCountdown
-          )}.`,
+          description: `Too many login attempts. Please try again in ${formattedTime.display}.`,
           richColors: true,
         });
         return;
@@ -149,11 +184,13 @@ export function SigninForm({
 
       if (!rateLimitCheck.ok) {
         const data = await rateLimitCheck.json();
+        const retryAfter = data.retryAfter || RATE_LIMIT_WINDOW;
         setIsRateLimited(true);
-        setRateLimitCountdown(data.retryAfter || RATE_LIMIT_WINDOW);
+        setRateLimitCountdown(retryAfter);
+        setFormattedTime(getFormattedTime(retryAfter));
         toast.error("Too Many Attempts", {
           description: `Too many login attempts for this email. Please try again in ${formatRetryTime(
-            data.retryAfter || RATE_LIMIT_WINDOW
+            retryAfter
           )}.`,
           richColors: true,
         });
@@ -172,6 +209,7 @@ export function SigninForm({
             });
             setIsRateLimited(false);
             setRateLimitCountdown(0);
+            setFormattedTime({ display: "", minutes: 0, seconds: 0 });
 
             if (ctx.data.twoFactorRedirect) {
               setEmail(email);
@@ -191,27 +229,24 @@ export function SigninForm({
             // Check if rate limit was exceeded after this attempt
             if (incrementResponse.status === 429) {
               const data = await incrementResponse.json();
+              const retryAfter = data.retryAfter || RATE_LIMIT_WINDOW;
               setIsRateLimited(true);
-              setRateLimitCountdown(data.retryAfter || RATE_LIMIT_WINDOW);
-            }
+              setRateLimitCountdown(retryAfter);
+              setFormattedTime(getFormattedTime(retryAfter));
 
-            if (ctx.error.status === 403) {
+              toast.error("Too Many Attempts", {
+                description: `Too many login attempts. Please try again in ${formatRetryTime(
+                  retryAfter
+                )}.`,
+                richColors: true,
+              });
+            } else if (ctx.error.status === 403) {
               toast.error("Please verify your email address");
               await authClient.sendVerificationEmail({
                 email: email,
                 callbackURL: "/sign-in",
               });
               toast.success("Verification email sent!");
-            } else if (
-              ctx.error.status === 429 ||
-              incrementResponse.status === 429
-            ) {
-              toast.error("Too Many Attempts", {
-                description: `Too many login attempts. Please try again in ${formatRetryTime(
-                  rateLimitCountdown
-                )}.`,
-                richColors: true,
-              });
             } else {
               toast.error("Error", {
                 description: ctx.error.message || "Error logging in",
@@ -328,7 +363,7 @@ export function SigninForm({
       {isRateLimited && rateLimitCountdown > 0 && (
         <div className="bg-destructive/15 border border-destructive/20 rounded-lg p-4">
           <p className="text-destructive text-center text-sm font-medium">
-            Account locked for {formatRetryTime(rateLimitCountdown)}
+            Account locked for {formattedTime.display}
           </p>
         </div>
       )}
@@ -387,7 +422,7 @@ export function SigninForm({
             {isSubmitting ? (
               <Loader2 className="animate-spin mx-auto" />
             ) : isRateLimited ? (
-              "Account Locked"
+              `Account Locked (${formattedTime.display})`
             ) : (
               "Login"
             )}
