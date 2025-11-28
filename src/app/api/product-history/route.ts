@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       query.$or = [
         { saleType: "sale" },
         { saleType: "delivery" },
-        { saleType: { $exists: false } } // Include old records without saleType
+        { saleType: { $exists: false } }, // Include old records without saleType
       ];
     }
 
@@ -117,19 +117,22 @@ export async function GET(request: NextRequest) {
 }
 
 // Separate function for stats
+// Separate function for stats
 async function getStats(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const category = searchParams.get("category");
+    const search = searchParams.get("search") || "";
+    const status = searchParams.get("status");
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
-    
+
     const startOfYear = new Date(now.getFullYear(), 0, 1);
 
     // Build base match query for stats
@@ -137,9 +140,29 @@ async function getStats(request: NextRequest) {
       $or: [
         { saleType: "sale" },
         { saleType: "delivery" },
-        { saleType: { $exists: false } }
-      ]
+        { saleType: { $exists: false } },
+      ],
     };
+
+    // Add search filter
+    if (search) {
+      baseMatch.$and = [
+        {
+          $or: [
+            { productName: { $regex: search, $options: "i" } },
+            { productSku: { $regex: search, $options: "i" } },
+            { category: { $regex: search, $options: "i" } },
+            { "soldBy.name": { $regex: search, $options: "i" } },
+            { notes: { $regex: search, $options: "i" } },
+          ],
+        },
+      ];
+    }
+
+    // Add status filter
+    if (status && status !== "all") {
+      baseMatch.status = status;
+    }
 
     // Apply date filters to stats if provided
     if (startDate || endDate) {
@@ -163,7 +186,7 @@ async function getStats(request: NextRequest) {
       {
         $match: {
           ...baseMatch,
-          saleDate: { $gte: startOfMonth }
+          saleDate: { $gte: startOfMonth },
         },
       },
       {
@@ -181,7 +204,7 @@ async function getStats(request: NextRequest) {
       {
         $match: {
           ...baseMatch,
-          saleDate: { $gte: startOfWeek }
+          saleDate: { $gte: startOfWeek },
         },
       },
       {
@@ -199,7 +222,7 @@ async function getStats(request: NextRequest) {
       {
         $match: {
           ...baseMatch,
-          saleDate: { $gte: startOfYear }
+          saleDate: { $gte: startOfYear },
         },
       },
       {

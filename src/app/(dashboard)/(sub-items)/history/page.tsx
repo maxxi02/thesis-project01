@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useId, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import {
   Card,
   CardContent,
@@ -11,13 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   Dialog,
   DialogContent,
@@ -43,7 +37,6 @@ import {
   Loader2,
   Download,
   Calendar,
-  Filter,
   BarChart3,
   AlertTriangle,
   CheckCircle,
@@ -120,10 +113,6 @@ interface PaginationInfo {
 }
 
 const ProductHistoryView = () => {
-  // Generate stable IDs for form inputs
-  const searchInputId = useId();
-  const statusSelectId = useId();
-
   const [history, setHistory] = useState<ProductHistoryItem[]>([]);
   const [stats, setStats] = useState<ProductHistoryStats | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -134,9 +123,10 @@ const ProductHistoryView = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedStatus, setSelectedStatus] = useState("all");
+
+  const searchInputId = useId();
+  const [searchTerm, setSearchTerm] = useState("");
 
   // User state
   const [user, setUser] = useState<{ role?: string }>({ role: "admin" });
@@ -170,8 +160,9 @@ const ProductHistoryView = () => {
       params.append("limit", "20");
       params.append("includeDeliveries", "true");
       if (searchTerm) params.append("search", searchTerm);
-      if (selectedStatus && selectedStatus !== "all")
-        params.append("status", selectedStatus);
+      // REMOVE this line:
+      // if (selectedStatus && selectedStatus !== "all")
+      //   params.append("status", selectedStatus);
 
       const response = await fetch(`/api/product-history?${params.toString()}`);
       const data = await response.json();
@@ -188,7 +179,7 @@ const ProductHistoryView = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, selectedStatus]);
+  }, [currentPage, searchTerm]);
 
   // Fetch statistics
   const fetchStats = useCallback(async () => {
@@ -196,6 +187,9 @@ const ProductHistoryView = () => {
       setStatsLoading(true);
       const params = new URLSearchParams();
       if (searchTerm) params.append("search", searchTerm);
+      // REMOVE these lines:
+      // if (selectedStatus && selectedStatus !== "all")
+      //   params.append("status", selectedStatus);
 
       const response = await fetch(
         `/api/product-history?action=stats&${params.toString()}`
@@ -214,7 +208,6 @@ const ProductHistoryView = () => {
     }
   }, [searchTerm]);
 
-  // Clear product history (admin only)
   const clearProductHistory = async () => {
     try {
       setClearingHistory(true);
@@ -289,13 +282,6 @@ const ProductHistoryView = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Clear all filters
-  const clearFilters = () => {
-    setSearchTerm("");
-    setSelectedStatus("all");
-    setCurrentPage(1);
-  };
-
   // Initialize data
   useEffect(() => {
     fetchHistory();
@@ -306,12 +292,11 @@ const ProductHistoryView = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setCurrentPage(1);
-      fetchStats();
+      fetchStats(); // Add this line to refetch stats when search changes
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedStatus, fetchStats]);
-
+  }, [searchTerm, fetchStats]); 
   // Handle pagination
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
@@ -503,68 +488,6 @@ const ProductHistoryView = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filter Sales History
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={clearFilters}>
-              Clear All Filters
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label
-                htmlFor={searchInputId}
-                className="text-sm font-medium block"
-              >
-                Search Products
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id={searchInputId}
-                  placeholder="Search by name, SKU, or category..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Search by product name, SKU, or category
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <label
-                htmlFor={statusSelectId}
-                className="text-sm font-medium block"
-              >
-                Status
-              </label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger id={statusSelectId}>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Main Content */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         {/* Top Selling Products Sidebar */}
@@ -623,18 +546,22 @@ const ProductHistoryView = () => {
         {/* Sales History Table - Main Content */}
         <Card className="xl:col-span-3">
           <CardHeader>
-            <CardTitle>Sales & Delivery History</CardTitle>
-            <CardDescription>
-              {pagination
-                ? `Showing ${Math.min(
-                    pagination.totalCount,
-                    (pagination.currentPage - 1) * pagination.limit + 1
-                  )}-${Math.min(
-                    pagination.currentPage * pagination.limit,
-                    pagination.totalCount
-                  )} of ${pagination.totalCount} transactions`
-                : "Loading..."}
-            </CardDescription>
+            <div className="flex flex-col gap-4">
+              <div>
+                <CardTitle>Sales & Delivery History</CardTitle>
+                <CardDescription>
+                  {pagination
+                    ? `Showing ${Math.min(
+                        pagination.totalCount,
+                        (pagination.currentPage - 1) * pagination.limit + 1
+                      )}-${Math.min(
+                        pagination.currentPage * pagination.limit,
+                        pagination.totalCount
+                      )} of ${pagination.totalCount} transactions`
+                    : "Loading..."}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (

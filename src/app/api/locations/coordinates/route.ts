@@ -2,7 +2,6 @@ import { CoordinatesResponse, LocationsResponse } from "@/types/coordinates";
 import { BatangasCityAddress } from "@/types/location-service";
 import { NextRequest, NextResponse } from "next/server";
 
-
 interface CoordinateRequest {
   address: string;
 }
