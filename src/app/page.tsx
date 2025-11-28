@@ -253,7 +253,7 @@ const Home = () => {
               className="relative w-full h-full aspect-square overflow-hidden"
             >
               <Image
-                src="/hero-section-img.jpg"
+                src="/hotdoghero.png"
                 alt="Warehouse management system"
                 fill
                 className="object-cover"

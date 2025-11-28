@@ -91,6 +91,7 @@ export interface BatangasCityAddress {
 }
 
 export default function ProductManagement() {
+  const [userRole, setUserRole] = useState<string | null>(null);
   const MAX_PRICE = 500000;
   const MAX_STOCK = 500;
   const MIN_PRICE = 0;
@@ -100,9 +101,7 @@ export default function ProductManagement() {
   const [userSession, setUserSession] = useState<Session | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [deliveryPersonnel, setDeliveryPersonnel] = useState<
-    DeliveryPersonnel[]
-  >([]);
+  const [deliveryPersonnel, setDeliveryPersonnel] = useState<DeliveryPersonnel[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showShipModal, setShowShipModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -110,15 +109,12 @@ export default function ProductManagement() {
   const [showSellModal, setShowSellModal] = useState(false);
   const [showAddMethodModal, setShowAddMethodModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
-  const [showObjectDetectionModal, setShowObjectDetectionModal] =
-    useState(false);
+  const [showObjectDetectionModal, setShowObjectDetectionModal] = useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [addressInput, setAddressInput] = useState("");
-  const [filteredAddresses, setFilteredAddresses] = useState<
-    BatangasCityAddress[]
-  >([]);
+  const [filteredAddresses, setFilteredAddresses] = useState<BatangasCityAddress[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState("cards");
   const [mounted, setMounted] = useState(false);
@@ -161,6 +157,38 @@ export default function ProductManagement() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
 
+  // BUG FIX: Get current date in local timezone for proper date comparisons
+  const getCurrentLocalDate = () => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  };
+
+  // BUG FIX: Check if selected date is in the past
+  const isDateInPast = (dateString: string) => {
+    if (!dateString) return false;
+    const selectedDate = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selectedDate < today;
+  };
+
+  // BUG FIX: Get minimum time for time input based on selected date
+  const getMinTime = () => {
+    if (!shipmentData.estimatedDelivery) return "00:00";
+    
+    const selectedDate = new Date(shipmentData.estimatedDelivery.split('T')[0]);
+    const today = new Date();
+    
+    // If selected date is today, return current time, otherwise return "00:00"
+    if (selectedDate.toDateString() === today.toDateString()) {
+      const hours = today.getHours().toString().padStart(2, '0');
+      const minutes = today.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    
+    return "00:00";
+  };
+
   // Handle image upload
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -177,6 +205,40 @@ export default function ProductManagement() {
       reader.readAsDataURL(file);
     }
   };
+
+  // BUG FIX: Improved session fetching with error handling
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        setLoading(true);
+        const session = await getServerSession();
+        if (session?.user?.email) {
+          setUserSession(session);
+          setUserRole(session.user.role || null);
+          setupSSEConnection(session.user.id, session.user.email);
+          await NotificationHelper.initialize();
+          NotificationHelper.registerUserInteraction();
+        } else {
+          toast.error("Please log in to view your products");
+        }
+      } catch (error) {
+        console.error("Failed to fetch session:", error);
+        toast.error("Failed to load session");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (mounted) {
+      fetchSession();
+    }
+
+    return () => {
+      if (sseConnectionRef.current) {
+        sseConnectionRef.current.close();
+      }
+    };
+  }, [mounted]); // BUG FIX: Added mounted dependency
 
   // Load locations on mount
   useEffect(() => {
@@ -383,6 +445,29 @@ export default function ProductManagement() {
     }
   };
 
+  // BUG FIX: Improved estimated delivery date/time handling
+  const handleEstimatedDeliveryChange = (date: string, time: string) => {
+    let estimatedDelivery = "";
+    
+    if (date) {
+      if (isDateInPast(date)) {
+        toast.error("Cannot set delivery date in the past");
+        return;
+      }
+      
+      if (time) {
+        estimatedDelivery = `${date}T${time}`;
+      } else {
+        estimatedDelivery = `${date}T00:00`;
+      }
+    }
+    
+    setShipmentData({
+      ...shipmentData,
+      estimatedDelivery
+    });
+  };
+
   // Product addition methods
   const handleAddProduct = () => {
     setShowAddMethodModal(true);
@@ -431,6 +516,12 @@ export default function ProductManagement() {
     const price = parseFloat(newProductData.price);
     const stock = parseInt(newProductData.stock);
 
+    // Validate required fields
+    if (!newProductData.sku.trim()) {
+      toast.error("SKU is required");
+      return;
+    }
+
     if (price < MIN_PRICE || price > MAX_PRICE) {
       toast.error(
         `Price must be between ₱${MIN_PRICE} and ₱${MAX_PRICE.toLocaleString()}`
@@ -450,11 +541,7 @@ export default function ProductManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newProductData.name,
-          sku:
-            newProductData.sku ||
-            `${newProductData.category
-              .toUpperCase()
-              .replace(/\s+/g, "-")}-${Date.now()}`,
+          sku: newProductData.sku,
           category: newProductData.category,
           price: parseFloat(newProductData.price) || 0,
           stock: parseInt(newProductData.stock) || 0,
@@ -560,6 +647,7 @@ export default function ProductManagement() {
       driverId: "",
       estimatedDelivery: "",
     });
+    setAddressInput(""); // BUG FIX: Reset address input
     setShowShipModal(true);
   };
 
@@ -569,6 +657,18 @@ export default function ProductManagement() {
     if (loading) {
       toast.error("Processing shipment, please wait...");
       return;
+    }
+
+    // BUG FIX: Validate estimated delivery date
+    if (shipmentData.estimatedDelivery) {
+      const selectedDate = new Date(shipmentData.estimatedDelivery.split('T')[0]);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (selectedDate < today) {
+        toast.error("Estimated delivery date cannot be in the past");
+        return;
+      }
     }
 
     try {
@@ -634,6 +734,7 @@ export default function ProductManagement() {
         driverId: "",
         estimatedDelivery: "",
       });
+      setAddressInput(""); // BUG FIX: Clear address input
 
       // Send notification
       fetch("/api/notifications/newShipment", {
@@ -877,28 +978,6 @@ export default function ProductManagement() {
 
   // Effects
   useEffect(() => {
-    const fetchSession = async () => {
-      const session = await getServerSession();
-      if (session?.user?.email) {
-        setUserSession(session);
-        setupSSEConnection(session.user.id, session.user.email);
-        await NotificationHelper.initialize();
-        NotificationHelper.registerUserInteraction();
-      } else {
-        setLoading(false);
-        toast.error("Please log in to view your deliveries");
-      }
-    };
-    fetchSession();
-
-    return () => {
-      if (sseConnectionRef.current) {
-        sseConnectionRef.current.close();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     setMounted(true);
   }, []);
 
@@ -952,10 +1031,12 @@ export default function ProductManagement() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button onClick={handleAddProduct}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Product
-        </Button>
+        {userRole !== "cashier" && (
+          <Button onClick={handleAddProduct}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Product
+          </Button>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1056,15 +1137,26 @@ export default function ProductManagement() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(product)}>
-                            <Edit className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(product)}
-                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
+                          {userRole !== "cashier" && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(product)}
+                              >
+                                <Edit className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(product)}
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {userRole === "cashier" && (
+                            <DropdownMenuItem disabled>
+                              No actions available
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -1175,17 +1267,26 @@ export default function ProductManagement() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => handleEdit(product)}
-                                >
-                                  <Edit className="mr-2 h-4 w-4" /> Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleDelete(product)}
-                                  className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
+                                {userRole !== "cashier" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => handleEdit(product)}
+                                    >
+                                      <Edit className="mr-2 h-4 w-4" /> Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleDelete(product)}
+                                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {userRole === "cashier" && (
+                                  <DropdownMenuItem disabled>
+                                    No actions available
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -1247,7 +1348,7 @@ export default function ProductManagement() {
         title="Add New Category"
         description="Enter the name for the new category."
         maxWidth="max-w-md"
-        zIndex={60} // Higher z-index than the product modal
+        zIndex={60}
         footer={
           <>
             <Button
@@ -1296,7 +1397,7 @@ export default function ProductManagement() {
           setImagePreview("");
         }}
         title="Add New Product"
-        description="Enter the details for the new product."
+        description="Enter the details for the new product. Fields marked with * are required."
         maxWidth="max-w-md"
         footer={
           <>
@@ -1314,8 +1415,10 @@ export default function ProductManagement() {
               onClick={confirmAddProduct}
               disabled={
                 !newProductData.name ||
+                !newProductData.sku ||
                 !newProductData.category ||
-                !newProductData.price
+                !newProductData.price ||
+                !newProductData.stock
               }
             >
               Add Product
@@ -1324,10 +1427,12 @@ export default function ProductManagement() {
         }
       >
         <div className="grid gap-4 py-4">
+          {/* Product Name - Required */}
           <div className="grid gap-2">
-            <Label htmlFor="new-name">
+            <Label htmlFor="new-name" className="flex items-center gap-1">
               Product Name
-              <span className="text-xs text-muted-foreground ml-2">
+              <span className="text-red-500">*</span>
+              <span className="text-xs text-muted-foreground ml-auto">
                 {newProductData.name.length}/100
               </span>
             </Label>
@@ -1344,13 +1449,17 @@ export default function ProductManagement() {
               }}
               placeholder="Enter product name"
               maxLength={100}
+              required
             />
           </div>
+
+          {/* SKU - Required */}
           <div className="grid gap-2">
-            <Label htmlFor="new-sku">
-              SKU (Optional)
-              <span className="text-xs text-muted-foreground ml-2">
-                {newProductData.sku.length}/100
+            <Label htmlFor="new-sku" className="flex items-center gap-1">
+              SKU
+              <span className="text-red-500">*</span>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {newProductData.sku.length}/50
               </span>
             </Label>
             <Input
@@ -1358,18 +1467,27 @@ export default function ProductManagement() {
               value={newProductData.sku}
               onChange={(e) => {
                 const value = e.target.value;
-                if (value.length <= 100) {
+                if (value.length <= 50) {
                   setNewProductData({ ...newProductData, sku: value });
                 } else {
-                  toast.error("SKU cannot exceed 100 characters");
+                  toast.error("SKU cannot exceed 50 characters");
                 }
               }}
-              placeholder="Leave blank to auto-generate"
-              maxLength={100}
+              placeholder="e.g., PROD-001, LAPTOP-MAX, PHONE-X2024"
+              maxLength={50}
+              required
             />
+            <p className="text-xs text-muted-foreground">
+              Use a unique SKU format: Category-Number or Brand-Model-Year
+            </p>
           </div>
+
+          {/* Category - Required */}
           <div className="grid gap-2">
-            <Label htmlFor="new-category">Category</Label>
+            <Label htmlFor="new-category" className="flex items-center gap-1">
+              Category
+              <span className="text-red-500">*</span>
+            </Label>
             <div className="flex flex-col gap-1">
               <Select
                 value={newProductData.category}
@@ -1399,10 +1517,14 @@ export default function ProductManagement() {
               </Button>
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
-            {/* ========== PRICE INPUT WITH VALIDATION ========== */}
+            {/* Price - Required */}
             <div className="grid gap-2">
-              <Label htmlFor="new-price">Price</Label>
+              <Label htmlFor="new-price" className="flex items-center gap-1">
+                Price
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="new-price"
                 type="number"
@@ -1414,7 +1536,6 @@ export default function ProductManagement() {
                   const value = e.target.value;
                   const numValue = parseFloat(value);
 
-                  // Prevent entering values above max
                   if (numValue > MAX_PRICE) {
                     toast.error(
                       `Price cannot exceed ₱${MAX_PRICE.toLocaleString()}`
@@ -1422,7 +1543,6 @@ export default function ProductManagement() {
                     return;
                   }
 
-                  // Prevent negative values
                   if (numValue < 0) {
                     return;
                   }
@@ -1433,7 +1553,6 @@ export default function ProductManagement() {
                   });
                 }}
                 onKeyDown={(e) => {
-                  // Prevent minus, plus, and 'e' (exponential)
                   if (
                     e.key === "-" ||
                     e.key === "+" ||
@@ -1444,7 +1563,6 @@ export default function ProductManagement() {
                   }
                 }}
                 onPaste={(e) => {
-                  // Prevent pasting invalid values
                   const pasteData = e.clipboardData.getData("text");
                   const numValue = parseFloat(pasteData);
                   if (
@@ -1459,11 +1577,16 @@ export default function ProductManagement() {
                   }
                 }}
                 placeholder="0.00"
+                required
               />
             </div>
-            {/* ========== STOCK INPUT WITH VALIDATION ========== */}
+
+            {/* Stock - Required */}
             <div className="grid gap-2">
-              <Label htmlFor="new-stock">Stock </Label>
+              <Label htmlFor="new-stock" className="flex items-center gap-1">
+                Stock
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="new-stock"
                 type="number"
@@ -1474,7 +1597,6 @@ export default function ProductManagement() {
                   const value = e.target.value;
                   const numValue = parseInt(value);
 
-                  // Allow empty string for deletion
                   if (value === "") {
                     setNewProductData({
                       ...newProductData,
@@ -1483,13 +1605,11 @@ export default function ProductManagement() {
                     return;
                   }
 
-                  // Prevent values above max
                   if (numValue > MAX_STOCK) {
                     toast.error(`Stock cannot exceed ${MAX_STOCK} units`);
                     return;
                   }
 
-                  // Prevent negative values
                   if (numValue < 0) {
                     return;
                   }
@@ -1500,7 +1620,6 @@ export default function ProductManagement() {
                   });
                 }}
                 onKeyDown={(e) => {
-                  // Prevent minus, plus, decimal, and 'e'
                   if (
                     e.key === "-" ||
                     e.key === "+" ||
@@ -1526,13 +1645,20 @@ export default function ProductManagement() {
                   }
                 }}
                 placeholder="0"
+                required
               />
             </div>
           </div>
+
+          {/* Description - Optional */}
           <div className="grid gap-2">
-            <Label htmlFor="new-description">
+            <Label
+              htmlFor="new-description"
+              className="flex items-center gap-1"
+            >
               Description
-              <span className="text-xs text-muted-foreground ml-2">
+              <span className="text-xs text-muted-foreground">(Optional)</span>
+              <span className="text-xs text-muted-foreground ml-auto">
                 {(newProductData.description || "").length}/100
               </span>
             </Label>
@@ -1552,10 +1678,16 @@ export default function ProductManagement() {
               }}
               placeholder="Product description"
               maxLength={100}
+              rows={4}
             />
           </div>
+
+          {/* Product Image - Optional */}
           <div className="grid gap-2">
-            <Label htmlFor="new-image">Product Image</Label>
+            <Label htmlFor="new-image" className="flex items-center gap-1">
+              Product Image
+              <span className="text-xs text-muted-foreground">(Optional)</span>
+            </Label>
             <Input
               id="new-image"
               type="file"
@@ -1674,15 +1806,26 @@ export default function ProductManagement() {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="sell-note">Sale Note (Optional)</Label>
+            <Label htmlFor="sell-note">
+              Sale Note (Optional)
+              <span className="text-xs text-muted-foreground ml-2">
+                {sellData.note.length}/100
+              </span>
+            </Label>
             <Textarea
               id="sell-note"
               placeholder="Add notes about this sale"
               value={sellData.note}
-              onChange={(e) =>
-                setSellData({ ...sellData, note: e.target.value })
-              }
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 100) {
+                  setSellData({ ...sellData, note: value });
+                } else {
+                  toast.error("Sale note cannot exceed 100 characters");
+                }
+              }}
               rows={3}
+              maxLength={100}
             />
           </div>
 
@@ -1710,13 +1853,19 @@ export default function ProductManagement() {
       {/* ========== SHIP MODAL WITH VALIDATION ========== */}
       <CustomModal
         isOpen={showShipModal}
-        onClose={() => setShowShipModal(false)}
+        onClose={() => {
+          setShowShipModal(false);
+          setAddressInput(""); // BUG FIX: Clear address input when closing
+        }}
         title="📦 Ship Product"
         description={`Configure shipment details for ${selectedProduct?.name}`}
         maxWidth="max-w-lg"
         footer={
           <>
-            <Button variant="outline" onClick={() => setShowShipModal(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowShipModal(false);
+              setAddressInput(""); // BUG FIX: Clear address input when closing
+            }}>
               Cancel
             </Button>
             <Button
@@ -1887,6 +2036,7 @@ export default function ProductManagement() {
               maxLength={100}
             />
           </div>
+          
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="estimatedDeliveryDate">
@@ -1898,14 +2048,16 @@ export default function ProductManagement() {
                 value={shipmentData.estimatedDelivery?.split("T")[0] || ""}
                 onChange={(e) => {
                   const date = e.target.value;
-                  const time =
-                    shipmentData.estimatedDelivery?.split("T")[1] || "00:00";
-                  setShipmentData({
-                    ...shipmentData,
-                    estimatedDelivery: date ? `${date}T${time}` : "",
-                  });
+                  const time = shipmentData.estimatedDelivery?.split("T")[1] || "00:00";
+                  
+                  if (date && isDateInPast(date)) {
+                    toast.error("Cannot set delivery date in the past");
+                    return;
+                  }
+                  
+                  handleEstimatedDeliveryChange(date, time);
                 }}
-                min={new Date().toISOString().split("T")[0]}
+                min={getCurrentLocalDate()} // BUG FIX: Use current local date
               />
             </div>
             <div className="grid gap-2">
@@ -1918,17 +2070,23 @@ export default function ProductManagement() {
                 value={shipmentData.estimatedDelivery?.split("T")[1] || ""}
                 onChange={(e) => {
                   const time = e.target.value;
-                  const date =
-                    shipmentData.estimatedDelivery?.split("T")[0] ||
-                    new Date().toISOString().split("T")[0];
-                  setShipmentData({
-                    ...shipmentData,
-                    estimatedDelivery: time ? `${date}T${time}` : "",
-                  });
+                  const date = shipmentData.estimatedDelivery?.split("T")[0] || getCurrentLocalDate();
+                  handleEstimatedDeliveryChange(date, time);
                 }}
+                min={getMinTime()} // BUG FIX: Dynamic min time based on selected date
+                disabled={!shipmentData.estimatedDelivery?.split("T")[0]} // BUG FIX: Disable if no date selected
               />
             </div>
           </div>
+
+          {shipmentData.estimatedDelivery && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800">
+                <strong>Estimated Delivery:</strong>{" "}
+                {new Date(shipmentData.estimatedDelivery).toLocaleString()}
+              </p>
+            </div>
+          )}
 
           {shipmentData.quantity && selectedProduct && (
             <div className="mt-4 p-3 bg-muted rounded-lg">
@@ -2067,7 +2225,6 @@ export default function ProductManagement() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* ========== EDIT PRICE INPUT WITH VALIDATION ========== */}
             <div className="grid gap-2">
               <Label htmlFor="edit-price">Price (₱)</Label>
               <Input
@@ -2125,7 +2282,6 @@ export default function ProductManagement() {
               />
             </div>
 
-            {/* ========== EDIT STOCK INPUT WITH VALIDATION ========== */}
             <div className="grid gap-2">
               <Label htmlFor="edit-stock">Stock</Label>
               <Input

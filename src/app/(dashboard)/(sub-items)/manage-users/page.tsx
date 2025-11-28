@@ -70,12 +70,12 @@ import {
   CheckCircle,
   XCircle,
   Search,
+  AlertCircle,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserData, UserRole } from "@/types/user-type";
 import Image from "next/image";
 import { createUserSchema } from "./_components/create-user-schema";
-
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>;
 
@@ -85,6 +85,7 @@ interface UsersTableProps {
   onRoleChange: (userId: string, newRole: UserRole) => void;
   onUserAction: (action: string, userId: string) => void;
   actionLoading: string | null;
+  currentUserIsAdmin: boolean;
 }
 
 const UsersTable: React.FC<UsersTableProps> = ({
@@ -92,13 +93,46 @@ const UsersTable: React.FC<UsersTableProps> = ({
   onRoleChange,
   onUserAction,
   actionLoading,
+  currentUserIsAdmin,
 }) => {
   const roles = [
-    { value: "admin" as UserRole, variant: "destructive" as const, icon: Crown },
-    { value: "cashier" as UserRole, variant: "default" as const, icon: CreditCard },
-    { value: "delivery" as UserRole, variant: "secondary" as const, icon: Truck },
-    { value: "user" as UserRole, variant: "outline" as const, icon: Users },
+    {
+      value: "admin" as UserRole,
+      variant: "destructive" as const,
+      icon: Crown,
+      label: "Admin",
+    },
+    {
+      value: "cashier" as UserRole,
+      variant: "default" as const,
+      icon: CreditCard,
+      label: "Cashier",
+    },
+    {
+      value: "delivery" as UserRole,
+      variant: "secondary" as const,
+      icon: Truck,
+      label: "Delivery",
+    },
+    {
+      value: "user" as UserRole,
+      variant: "outline" as const,
+      icon: Users,
+      label: "User",
+    },
   ];
+
+  // Check if there's already an admin in the system
+  const existingAdmin = users.find((user) => user.role === "admin");
+
+  // Filter roles based on whether an admin already exists
+  const availableRoles = roles.filter((role) => {
+    if (role.value === "admin") {
+      // Only show admin role if no admin exists AND current user is admin
+      return !existingAdmin && currentUserIsAdmin;
+    }
+    return true;
+  });
 
   const getRoleVariant = (role: UserRole) => {
     return roles.find((r) => r.value === role)?.variant || "outline";
@@ -154,27 +188,54 @@ const UsersTable: React.FC<UsersTableProps> = ({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Select
-                      value={user.role}
-                      onValueChange={(value) =>
-                        onRoleChange(user.id, value as UserRole)
-                      }
-                      disabled={actionLoading === user.id}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roles.map((role) => (
-                          <SelectItem key={role.value} value={role.value}>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={user.role}
+                        onValueChange={(value) =>
+                          onRoleChange(user.id, value as UserRole)
+                        }
+                        disabled={
+                          actionLoading === user.id ||
+                          (user.role === "admin" &&
+                            existingAdmin?.id === user.id)
+                        }
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue>
                             <div className="flex items-center gap-2">
-                              <role.icon className="h-4 w-4" />
-                              <span className="capitalize">{role.value}</span>
+                              {(() => {
+                                const roleConfig = roles.find(
+                                  (r) => r.value === user.role
+                                );
+                                if (!roleConfig) return user.role;
+                                const RoleIcon = roleConfig.icon;
+                                return (
+                                  <>
+                                    <RoleIcon className="h-4 w-4" />
+                                    <span className="capitalize">
+                                      {roleConfig.label}
+                                    </span>
+                                  </>
+                                );
+                              })()}
                             </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableRoles.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              <div className="flex items-center gap-2">
+                                <role.icon className="h-4 w-4" />
+                                <span className="capitalize">{role.label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {user.role === "admin" && (
+                        <Crown className="h-4 w-4 text-yellow-500" />
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -205,7 +266,9 @@ const UsersTable: React.FC<UsersTableProps> = ({
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"
-                          disabled={actionLoading === user.id}
+                          disabled={
+                            actionLoading === user.id || user.role === "admin"
+                          }
                         >
                           {actionLoading === user.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -218,12 +281,14 @@ const UsersTable: React.FC<UsersTableProps> = ({
                         {user.banned ? (
                           <DropdownMenuItem
                             onClick={() => onUserAction("unban", user.id)}
+                            disabled={user.role === "admin"}
                           >
                             <UserCheck className="mr-2 h-4 w-4" /> Unban User
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuItem
                             onClick={() => onUserAction("ban", user.id)}
+                            disabled={user.role === "admin"}
                           >
                             <Ban className="mr-2 h-4 w-4" /> Ban User
                           </DropdownMenuItem>
@@ -232,6 +297,7 @@ const UsersTable: React.FC<UsersTableProps> = ({
                         <DropdownMenuItem
                           onClick={() => onUserAction("delete", user.id)}
                           className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                          disabled={user.role === "admin"}
                         >
                           <Trash2 className="mr-2 h-4 w-4" /> Delete User
                         </DropdownMenuItem>
@@ -258,6 +324,7 @@ const UserManagementPage = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState("");
   const [passwordCopied, setPasswordCopied] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserData | null>(null);
 
   const form = useForm<CreateUserFormValues>({
     resolver: zodResolver(createUserSchema),
@@ -280,6 +347,7 @@ const UserManagementPage = () => {
   // ========== EFFECTS ==========
   useEffect(() => {
     fetchUsers();
+    fetchCurrentUser();
   }, []);
 
   // ========== DATA FETCHING ==========
@@ -314,6 +382,67 @@ const UserManagementPage = () => {
       setLoading(false);
     }
   };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const session = await authClient.getSession();
+      if (session?.data?.user) {
+        const userData: UserData = {
+          id: session.data.user.id,
+          name: session.data.user.name || "",
+          email: session.data.user.email,
+          role: (session.data.user.role as UserRole) || "user",
+          emailVerified: session.data.user.emailVerified || false,
+          banned: false,
+          image: session.data.user.image ?? undefined,
+          createdAt: session.data.user.createdAt
+            ? new Date(session.data.user.createdAt).toISOString()
+            : new Date().toISOString(),
+        };
+        setCurrentUser(userData);
+      }
+    } catch (error) {
+      console.error("Failed to fetch current user:", error);
+    }
+  };
+
+  // Check if there's already an admin
+  const existingAdmin = users.find((user) => user.role === "admin");
+  const currentUserIsAdmin = currentUser?.role === "admin";
+
+  // Filter roles for create user form based on admin existence
+  const availableRoles = [
+    {
+      value: "admin" as UserRole,
+      label: "Admin",
+      icon: Crown,
+      description: "Full system access",
+      disabled: !!existingAdmin || !currentUserIsAdmin,
+    },
+    {
+      value: "cashier" as UserRole,
+      label: "Cashier",
+      icon: CreditCard,
+      description: "Point of sale access",
+    },
+    {
+      value: "delivery" as UserRole,
+      label: "Delivery",
+      icon: Truck,
+      description: "Delivery management",
+    },
+    {
+      value: "user" as UserRole,
+      label: "User",
+      icon: Users,
+      description: "Basic user access",
+    },
+  ].filter((role) => {
+    if (role.value === "admin") {
+      return !existingAdmin && currentUserIsAdmin;
+    }
+    return true;
+  });
 
   // ========== PASSWORD GENERATION ==========
   const generateRandomPassword = () => {
@@ -365,6 +494,14 @@ const UserManagementPage = () => {
   // ========== FORM SUBMISSION ==========
   const onSubmit = async (values: CreateUserFormValues) => {
     try {
+      // Check if trying to create admin when one already exists
+      if (values.role === "admin" && existingAdmin) {
+        toast.error(
+          "An admin user already exists. Only one admin is allowed in the system."
+        );
+        return;
+      }
+
       // Combine name parts with proper formatting
       const fullName = [
         values.firstName.trim(),
@@ -419,7 +556,7 @@ const UserManagementPage = () => {
     } catch (error) {
       console.error("Error creating user:", error);
       const errorMessage = (error as Error).message;
-      
+
       if (errorMessage.includes("email") || errorMessage.includes("Email")) {
         toast.error("This email address is already registered");
       } else {
@@ -432,6 +569,12 @@ const UserManagementPage = () => {
   const handleUserAction = async (action: string, userId: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
+
+    // Prevent actions on admin user
+    if (user.role === "admin") {
+      toast.error("Cannot perform this action on the admin user");
+      return;
+    }
 
     setActionLoading(userId);
 
@@ -454,7 +597,11 @@ const UserManagementPage = () => {
           break;
 
         case "delete":
-          if (confirm(`Are you sure you want to permanently delete ${user.name}? This action cannot be undone.`)) {
+          if (
+            confirm(
+              `Are you sure you want to permanently delete ${user.name}? This action cannot be undone.`
+            )
+          ) {
             await authClient.admin.removeUser({ userId });
             setUsers((prev) => prev.filter((u) => u.id !== userId));
             toast.success(`${user.name} has been deleted`);
@@ -470,6 +617,23 @@ const UserManagementPage = () => {
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+
+    // Prevent changing admin role
+    if (user.role === "admin") {
+      toast.error("Cannot change the role of the admin user");
+      return;
+    }
+
+    // Prevent creating multiple admins
+    if (newRole === "admin" && existingAdmin) {
+      toast.error(
+        "An admin user already exists. Only one admin is allowed in the system."
+      );
+      return;
+    }
+
     setActionLoading(userId);
     try {
       await authClient.admin.setRole({
@@ -490,37 +654,6 @@ const UserManagementPage = () => {
   };
 
   // ========== FILTERING ==========
-  const roles = [
-    {
-      value: "admin" as UserRole,
-      label: "Admin",
-      variant: "destructive" as const,
-      icon: Crown,
-      description: "Full system access",
-    },
-    {
-      value: "cashier" as UserRole,
-      label: "Cashier",
-      variant: "default" as const,
-      icon: CreditCard,
-      description: "Point of sale access",
-    },
-    {
-      value: "delivery" as UserRole,
-      label: "Delivery",
-      variant: "secondary" as const,
-      icon: Truck,
-      description: "Delivery management",
-    },
-    {
-      value: "user" as UserRole,
-      label: "User",
-      variant: "outline" as const,
-      icon: Users,
-      description: "Basic user access",
-    },
-  ];
-
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -547,11 +680,21 @@ const UserManagementPage = () => {
           <p className="text-muted-foreground mt-2">
             Manage users, roles, and permissions across the system
           </p>
+
+          {/* Admin Status Alert */}
+          {existingAdmin && (
+            <div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+              <Crown className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-700">
+                Admin user: {existingAdmin.name} ({existingAdmin.email})
+              </span>
+            </div>
+          )}
         </div>
 
         <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
           <DialogTrigger asChild>
-            <Button>
+            <Button disabled={!currentUserIsAdmin}>
               <Plus className="mr-2 h-4 w-4" />
               Create User
             </Button>
@@ -560,8 +703,17 @@ const UserManagementPage = () => {
             <DialogHeader>
               <DialogTitle>Create New User</DialogTitle>
               <DialogDescription>
-                Add a new user to the system with appropriate role and permissions. 
-                All fields are required unless marked optional.
+                Add a new user to the system with appropriate role and
+                permissions.
+                {existingAdmin && (
+                  <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm text-amber-700">
+                      Admin role is not available as one already exists in the
+                      system.
+                    </span>
+                  </div>
+                )}
               </DialogDescription>
             </DialogHeader>
 
@@ -579,12 +731,15 @@ const UserManagementPage = () => {
                       <FormItem>
                         <FormLabel>First Name *</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="John" 
-                            {...field} 
+                          <Input
+                            placeholder="John"
+                            {...field}
                             maxLength={50}
                             onChange={(e) => {
-                              const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, '');
+                              const value = e.target.value.replace(
+                                /[^a-zA-Z\s'-]/g,
+                                ""
+                              );
                               field.onChange(value);
                             }}
                           />
@@ -607,7 +762,10 @@ const UserManagementPage = () => {
                             {...field}
                             maxLength={50}
                             onChange={(e) => {
-                              const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, '');
+                              const value = e.target.value.replace(
+                                /[^a-zA-Z\s'-]/g,
+                                ""
+                              );
                               field.onChange(value);
                             }}
                           />
@@ -625,12 +783,15 @@ const UserManagementPage = () => {
                       <FormItem>
                         <FormLabel>Last Name *</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Doe" 
-                            {...field} 
+                          <Input
+                            placeholder="Doe"
+                            {...field}
                             maxLength={50}
                             onChange={(e) => {
-                              const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, '');
+                              const value = e.target.value.replace(
+                                /[^a-zA-Z\s'-]/g,
+                                ""
+                              );
                               field.onChange(value);
                             }}
                           />
@@ -670,18 +831,30 @@ const UserManagementPage = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Role *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select a role" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {roles.map((role) => (
-                              <SelectItem key={role.value} value={role.value}>
+                            {availableRoles.map((role) => (
+                              <SelectItem
+                                key={role.value}
+                                value={role.value}
+                                disabled={role.disabled}
+                              >
                                 <div className="flex items-center gap-2">
                                   <role.icon className="h-4 w-4" />
                                   <span>{role.label}</span>
+                                  {role.value === "admin" && existingAdmin && (
+                                    <span className="text-xs text-muted-foreground ml-1">
+                                      (Unavailable)
+                                    </span>
+                                  )}
                                 </div>
                               </SelectItem>
                             ))}
@@ -834,7 +1007,7 @@ const UserManagementPage = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                {roles.map((role) => (
+                {availableRoles.map((role) => (
                   <SelectItem key={role.value} value={role.value}>
                     <div className="flex items-center gap-2">
                       <role.icon className="h-4 w-4" />
@@ -855,6 +1028,7 @@ const UserManagementPage = () => {
           onRoleChange={handleRoleChange}
           onUserAction={handleUserAction}
           actionLoading={actionLoading}
+          currentUserIsAdmin={currentUserIsAdmin}
         />
       </div>
     </div>

@@ -14,6 +14,14 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
+    const action = searchParams.get("action");
+
+    // Handle stats request
+    if (action === "stats") {
+      return await getStats(request);
+    }
+
+    // Handle regular history request
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const search = searchParams.get("search") || "";
@@ -22,6 +30,7 @@ export async function GET(request: NextRequest) {
     const productId = searchParams.get("productId");
     const category = searchParams.get("category");
     const status = searchParams.get("status");
+    const includeDeliveries = searchParams.get("includeDeliveries") === "true";
 
     // Build query
     const query: Record<string, unknown> = {};
@@ -43,7 +52,7 @@ export async function GET(request: NextRequest) {
       }
       if (endDate) {
         const endDateTime = new Date(endDate);
-        endDateTime.setHours(23, 59, 59, 999); // Include the entire end date
+        endDateTime.setHours(23, 59, 59, 999);
         (query.saleDate as { $lte?: Date }).$lte = endDateTime;
       }
     }
@@ -52,12 +61,21 @@ export async function GET(request: NextRequest) {
       query.productId = productId;
     }
 
-    if (category) {
+    if (category && category !== "all") {
       query.category = category;
     }
 
-    if (status) {
+    if (status && status !== "all") {
       query.status = status;
+    }
+
+    // Include both sales and deliveries
+    if (includeDeliveries) {
+      query.$or = [
+        { saleType: "sale" },
+        { saleType: "delivery" },
+        { saleType: { $exists: false } } // Include old records without saleType
+      ];
     }
 
     // Calculate skip value for pagination
@@ -98,6 +116,200 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Separate function for stats
+async function getStats(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const category = searchParams.get("category");
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    // Build base match query for stats
+    const baseMatch: Record<string, unknown> = {
+      $or: [
+        { saleType: "sale" },
+        { saleType: "delivery" },
+        { saleType: { $exists: false } }
+      ]
+    };
+
+    // Apply date filters to stats if provided
+    if (startDate || endDate) {
+      baseMatch.saleDate = {};
+      if (startDate) {
+        (baseMatch.saleDate as { $gte?: Date }).$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        (baseMatch.saleDate as { $lte?: Date }).$lte = endDateTime;
+      }
+    }
+
+    if (category && category !== "all") {
+      baseMatch.category = category;
+    }
+
+    // Get monthly stats
+    const monthlyStats = await ProductHistory.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          saleDate: { $gte: startOfMonth }
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$totalAmount" },
+          totalQuantity: { $sum: "$quantitySold" },
+          totalTransactions: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Get weekly stats
+    const weeklyStats = await ProductHistory.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          saleDate: { $gte: startOfWeek }
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$totalAmount" },
+          totalQuantity: { $sum: "$quantitySold" },
+          totalTransactions: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Get yearly stats
+    const yearlyStats = await ProductHistory.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          saleDate: { $gte: startOfYear }
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$totalAmount" },
+          totalQuantity: { $sum: "$quantitySold" },
+          totalTransactions: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Get top selling products
+    const topProducts = await ProductHistory.aggregate([
+      {
+        $match: baseMatch,
+      },
+      {
+        $group: {
+          _id: "$productId",
+          productName: { $first: "$productName" },
+          productSku: { $first: "$productSku" },
+          category: { $first: "$category" },
+          totalQuantity: { $sum: "$quantitySold" },
+          totalRevenue: { $sum: "$totalAmount" },
+          transactionCount: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { totalQuantity: -1 },
+      },
+      {
+        $limit: 10,
+      },
+    ]);
+
+    // Get sales by category
+    const salesByCategory = await ProductHistory.aggregate([
+      {
+        $match: baseMatch,
+      },
+      {
+        $group: {
+          _id: "$category",
+          category: { $first: "$category" },
+          totalSales: { $sum: "$totalAmount" },
+          totalQuantity: { $sum: "$quantitySold" },
+          transactionCount: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { totalSales: -1 },
+      },
+    ]);
+
+    // Get daily sales for the last 30 days
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const dailySales = await ProductHistory.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          saleDate: { $gte: thirtyDaysAgo },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$saleDate" },
+          },
+          totalSales: { $sum: "$totalAmount" },
+          totalQuantity: { $sum: "$quantitySold" },
+          transactionCount: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    return NextResponse.json({
+      monthlyStats: monthlyStats[0] || {
+        totalSales: 0,
+        totalQuantity: 0,
+        totalTransactions: 0,
+      },
+      weeklyStats: weeklyStats[0] || {
+        totalSales: 0,
+        totalQuantity: 0,
+        totalTransactions: 0,
+      },
+      yearlyStats: yearlyStats[0] || {
+        totalSales: 0,
+        totalQuantity: 0,
+        totalTransactions: 0,
+      },
+      topProducts,
+      salesByCategory,
+      dailySales,
+    });
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch statistics" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();
@@ -108,146 +320,6 @@ export async function POST(request: NextRequest) {
     const { action, data } = await request.json();
 
     await connectDB();
-
-    if (action === "stats") {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-
-      // Get monthly stats
-      const monthlyStats = await ProductHistory.aggregate([
-        {
-          $match: {
-            saleDate: { $gte: startOfMonth },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalSales: { $sum: "$totalAmount" },
-            totalQuantity: { $sum: "$quantitySold" },
-            totalTransactions: { $sum: 1 },
-          },
-        },
-      ]);
-
-      // Get weekly stats
-      const weeklyStats = await ProductHistory.aggregate([
-        {
-          $match: {
-            saleDate: { $gte: startOfWeek },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalSales: { $sum: "$totalAmount" },
-            totalQuantity: { $sum: "$quantitySold" },
-            totalTransactions: { $sum: 1 },
-          },
-        },
-      ]);
-
-      // Get yearly stats
-      const yearlyStats = await ProductHistory.aggregate([
-        {
-          $match: {
-            saleDate: { $gte: startOfYear },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalSales: { $sum: "$totalAmount" },
-            totalQuantity: { $sum: "$quantitySold" },
-            totalTransactions: { $sum: 1 },
-          },
-        },
-      ]);
-
-      // Get top selling products
-      const topProducts = await ProductHistory.aggregate([
-        {
-          $group: {
-            _id: "$productId",
-            productName: { $first: "$productName" },
-            productSku: { $first: "$productSku" },
-            category: { $first: "$category" },
-            totalQuantity: { $sum: "$quantitySold" },
-            totalRevenue: { $sum: "$totalAmount" },
-            transactionCount: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { totalQuantity: -1 },
-        },
-        {
-          $limit: 10,
-        },
-      ]);
-
-      // Get sales by category
-      const salesByCategory = await ProductHistory.aggregate([
-        {
-          $group: {
-            _id: "$category",
-            totalSales: { $sum: "$totalAmount" },
-            totalQuantity: { $sum: "$quantitySold" },
-            transactionCount: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { totalSales: -1 },
-        },
-      ]);
-
-      // Get daily sales for the last 30 days
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const dailySales = await ProductHistory.aggregate([
-        {
-          $match: {
-            saleDate: { $gte: thirtyDaysAgo },
-          },
-        },
-        {
-          $group: {
-            _id: {
-              $dateToString: { format: "%Y-%m-%d", date: "$saleDate" },
-            },
-            totalSales: { $sum: "$totalAmount" },
-            totalQuantity: { $sum: "$quantitySold" },
-            transactionCount: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { _id: 1 },
-        },
-      ]);
-
-      return NextResponse.json({
-        monthlyStats: monthlyStats[0] || {
-          totalSales: 0,
-          totalQuantity: 0,
-          totalTransactions: 0,
-        },
-        weeklyStats: weeklyStats[0] || {
-          totalSales: 0,
-          totalQuantity: 0,
-          totalTransactions: 0,
-        },
-        yearlyStats: yearlyStats[0] || {
-          totalSales: 0,
-          totalQuantity: 0,
-          totalTransactions: 0,
-        },
-        topProducts,
-        salesByCategory,
-        dailySales,
-      });
-    }
 
     if (action === "create") {
       // Create new product history entry
@@ -278,7 +350,6 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if user has admin privileges
-    // You might want to implement proper role checking here
     const { searchParams } = new URL(request.url);
     const historyId = searchParams.get("id");
 

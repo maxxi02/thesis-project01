@@ -1,3 +1,4 @@
+// app/api/products/[id]/to-ship/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { sendEventToUser } from "@/sse/sse";
 import { geocodeAddress } from "@/helpers/geocoding";
@@ -5,6 +6,7 @@ import { getServerSession } from "@/better-auth/action";
 import { connectDB } from "@/database/mongodb";
 import { Product } from "@/models/product";
 import { ToShip } from "@/models/toship";
+import { ProductHistory } from "@/models/product-history"; // Add this import
 import { sendNotificationToDriver } from "@/sse/notification";
 import mongoose from "mongoose";
 
@@ -136,6 +138,31 @@ export async function POST(
 
     await toShipItem.save({ session });
 
+    // ✅ ADDED: Create product history entry for the shipment
+    const productHistoryEntry = new ProductHistory({
+      productId: product._id,
+      productName: product.name,
+      productSku: product.sku,
+      category: product.category,
+      quantitySold: quantity,
+      unitPrice: product.price,
+      totalAmount: product.price * quantity,
+      saleDate: new Date(),
+      soldBy: {
+        name: markedBy.name.trim(),
+        email: markedBy.email.trim(),
+      },
+      notes: `Shipped to: ${destination.trim()}. ${
+        note.trim() || "No additional notes"
+      }`,
+      saleType: "delivery",
+      status: "pending", // Will be updated to "completed" when delivered
+      estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : null,
+      shipmentId: toShipItem._id, // Link to the shipment record
+    });
+
+    await productHistoryEntry.save({ session });
+
     // Commit transaction
     await session.commitTransaction();
 
@@ -178,6 +205,7 @@ export async function POST(
     return NextResponse.json({
       message: "Product marked for shipment successfully",
       shipmentId: toShipItem._id.toString(),
+      historyId: productHistoryEntry._id.toString(), // ✅ ADDED: Return history ID
       toShipItem: {
         id: toShipItem._id,
         productName: toShipItem.productName,

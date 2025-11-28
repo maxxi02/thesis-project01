@@ -74,6 +74,7 @@ interface DeliveryAssignment {
   assignedDate: string;
   startedAt?: string;
   deliveredAt?: string;
+  archivedAt?: string; // Add this field
   markedBy: {
     name: string;
     email: string;

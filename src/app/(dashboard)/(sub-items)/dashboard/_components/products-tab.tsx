@@ -20,8 +20,6 @@ import {
 import {
   type ChartConfig,
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
@@ -43,19 +41,7 @@ import {
 } from "@/components/ui/select";
 import { AIChatWidget } from "./ai-chat-widget";
 
-// Chart configurations
-const categoryChartConfig = {
-  sales: {
-    label: "Sales",
-  },
-} satisfies ChartConfig;
-
-const topProductsChartConfig = {
-  quantity: {
-    label: "Quantity Sold",
-  },
-} satisfies ChartConfig;
-
+// Remove the hardcoded chart configurations since we'll create them dynamically
 interface AnalyticsData {
   overview: {
     totalProducts: number;
@@ -119,80 +105,10 @@ export const ProductsTab = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState("30");
-  // GOOGLE AI VARIABLES
-  const [aiInsights, setAiInsights] = useState<string | null>(null);
-  const [loadingInsights, setLoadingInsights] = useState<boolean>(false);
-
-  // Prepare chart data - REPLACE THE EXISTING SECTION
-  const topProductsChartConfig = analytics ? {
-    quantity: {
-      label: "Quantity Sold",
-    },
-    ...analytics.topProducts.slice(0, 5).reduce((acc, product, index) => {
-      acc[product._id] = {
-        label: product.productName,
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
-      };
-      return acc;
-    }, {} as Record<string, { label: string; color: string }>)
-  } satisfies ChartConfig : { quantity: { label: "Quantity Sold" } } satisfies ChartConfig;
-
-  const categoryChartConfigDynamic = analytics ? {
-    sales: {
-      label: "Sales",
-    },
-    ...analytics.salesByCategory.reduce((acc, cat, index) => {
-      acc[cat.name.toLowerCase().replace(/\s+/g, '-')] = {
-        label: cat.name,
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
-      };
-      return acc;
-    }, {} as Record<string, { label: string; color: string }>)
-  } satisfies ChartConfig : { sales: { label: "Sales" } } satisfies ChartConfig;
-
-  const topProductsData = analytics ? analytics.topProducts
-    .slice(0, 5)
-    .map((product, index) => ({
-      id: product._id,
-      name: product.productName,
-      quantity: product.totalQuantity,
-      fill: `hsl(${(index * 360) / 5}, 70%, 60%)`, // Change this line
-    })) : [];
-
-  const categoryData = analytics ? analytics.salesByCategory.map((cat, index) => ({
-    id: cat.name.toLowerCase().replace(/\s+/g, '-'),
-    name: cat.name,
-    sales: cat.sales,
-    quantity: cat.quantity,
-    fill: `hsl(${(index * 360) / analytics.salesByCategory.length}, 70%, 60%)`, // Change this line
-  })) : [];
 
   useEffect(() => {
     fetchAnalytics();
   }, [period]);
-
-  const generateInsights = async (): Promise<void> => {
-    if (!analytics) return;
-
-    try {
-      setLoadingInsights(true);
-      const response = await fetch("/api/ai-analytics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analytics }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate insights");
-
-      const data: { insights: string } = await response.json();
-      setAiInsights(data.insights);
-    } catch (err) {
-      console.error("Error generating insights:", err);
-      setAiInsights("Failed to generate insights. Please try again.");
-    } finally {
-      setLoadingInsights(false);
-    }
-  };
 
   const fetchAnalytics = async () => {
     try {
@@ -209,6 +125,86 @@ export const ProductsTab = () => {
       setLoading(false);
     }
   };
+
+  // FIX: Create dynamic chart configurations based on actual data
+  const getTopProductsChartConfig = () => {
+    if (!analytics?.topProducts?.length) {
+      return { quantity: { label: "Quantity Sold" } } satisfies ChartConfig;
+    }
+
+    const config = {
+      quantity: {
+        label: "Quantity Sold",
+      },
+    } as ChartConfig;
+
+    // Add each top product to the config with unique colors
+    analytics.topProducts.slice(0, 5).forEach((product, index) => {
+      const key = product._id;
+      config[key] = {
+        label: product.productName,
+        color: `hsl(${(index * 72) % 360}, 70%, 50%)`, // Spread colors evenly around color wheel
+      };
+    });
+
+    return config;
+  };
+
+  const getCategoryChartConfig = () => {
+    if (!analytics?.salesByCategory?.length) {
+      return { sales: { label: "Sales" } } satisfies ChartConfig;
+    }
+
+    const config = {
+      sales: {
+        label: "Sales",
+      },
+    } as ChartConfig;
+
+    // Add each category to the config with unique colors
+    analytics.salesByCategory.forEach((category, index) => {
+      const key = category.name.toLowerCase().replace(/\s+/g, "-");
+      config[key] = {
+        label: category.name,
+        color: `hsl(${
+          (index * (360 / Math.max(analytics.salesByCategory.length, 1))) % 360
+        }, 70%, 50%)`,
+      };
+    });
+
+    return config;
+  };
+
+  // FIX: Prepare chart data with proper formatting
+  const topProductsData =
+    analytics?.topProducts?.slice(0, 5).map((product, index) => ({
+      id: product._id,
+      name:
+        product.productName.length > 20
+          ? `${product.productName.substring(0, 20)}...`
+          : product.productName,
+      quantity: product.totalQuantity,
+      revenue: product.totalRevenue,
+      fill: `hsl(${(index * 72) % 360}, 70%, 50%)`,
+    })) || [];
+
+  const categoryData =
+    analytics?.salesByCategory?.map((category, index) => ({
+      id: category.name.toLowerCase().replace(/\s+/g, "-"),
+      name:
+        category.name.length > 20
+          ? `${category.name.substring(0, 20)}...`
+          : category.name,
+      sales: category.sales,
+      quantity: category.quantity,
+      fill: `hsl(${
+        (index * (360 / Math.max(analytics.salesByCategory.length, 1))) % 360
+      }, 70%, 50%)`,
+    })) || [];
+
+  // FIX: Get the actual configs
+  const topProductsChartConfig = getTopProductsChartConfig();
+  const categoryChartConfig = getCategoryChartConfig();
 
   if (loading) {
     return (
@@ -293,7 +289,7 @@ export const ProductsTab = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-foreground">
-              Stock Alerts
+              Low Stock Alerts
             </CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -369,20 +365,25 @@ export const ProductsTab = () => {
             {topProductsData.length > 0 ? (
               <ChartContainer
                 config={topProductsChartConfig}
-                className="[&_.recharts-text]:fill-background mx-auto aspect-square max-h-[250px]"
+                className="mx-auto aspect-square max-h-[250px]"
               >
                 <PieChart>
                   <ChartTooltip
                     content={<ChartTooltipContent nameKey="name" hideLabel />}
                   />
-                  <Pie data={topProductsData} dataKey="quantity" nameKey="name">
-                    <LabelList
-                      dataKey="quantity"
-                      className="fill-background"
-                      stroke="none"
-                      fontSize={12}
-                      formatter={(value: number) => `${value}`}
-                    />
+                  <Pie
+                    data={topProductsData}
+                    dataKey="quantity"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    labelLine={true}
+                    label={true}
+                  >
+                    {topProductsData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
                   </Pie>
                 </PieChart>
               </ChartContainer>
@@ -418,19 +419,25 @@ export const ProductsTab = () => {
             {categoryData.length > 0 ? (
               <ChartContainer
                 config={categoryChartConfig}
-                className="[&_.recharts-text]:fill-background mx-auto aspect-square max-h-[250px]"
+                className="mx-auto aspect-square max-h-[250px]"
               >
                 <PieChart>
                   <ChartTooltip
                     content={<ChartTooltipContent nameKey="name" hideLabel />}
                   />
-                  <Pie data={categoryData} dataKey="sales" nameKey="name">
-                    <LabelList
-                      dataKey="name"
-                      className="fill-background"
-                      stroke="none"
-                      fontSize={12}
-                    />
+                  <Pie
+                    data={categoryData}
+                    dataKey="sales"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    labelLine={true}
+                    label={true}
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
                   </Pie>
                 </PieChart>
               </ChartContainer>
@@ -442,10 +449,12 @@ export const ProductsTab = () => {
           </CardContent>
           <CardFooter className="flex-col gap-2 text-sm">
             <div className="flex items-center gap-2 font-medium leading-none text-foreground">
-              Total Revenue: ₱{analytics.sales.totalSales.toLocaleString(undefined, {
+              Total Revenue: ₱
+              {analytics.sales.totalSales.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
-              })} <TrendingUp className="h-4 w-4" />
+              })}{" "}
+              <TrendingUp className="h-4 w-4" />
             </div>
             <div className="leading-none text-muted-foreground">
               Across {analytics.salesByCategory.length} categories
@@ -515,7 +524,7 @@ export const ProductsTab = () => {
         {/* Stock Alerts */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-foreground">Stock Alerts</CardTitle>
+            <CardTitle className="text-foreground">Low Stock Alerts</CardTitle>
             <CardDescription>Products needing attention</CardDescription>
           </CardHeader>
           <CardContent>
@@ -547,15 +556,15 @@ export const ProductsTab = () => {
                             product.stock === 0
                               ? "destructive"
                               : product.stock <= 10
-                                ? "secondary"
-                                : "default"
+                              ? "secondary"
+                              : "default"
                           }
                         >
                           {product.stock === 0
                             ? "Out of Stock"
                             : product.stock <= 10
-                              ? "Low Stock"
-                              : "In Stock"}
+                            ? "Low Stock"
+                            : "In Stock"}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -575,22 +584,6 @@ export const ProductsTab = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* {aiInsights && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              🤖 AI Insights
-            </CardTitle>
-            <CardDescription>Smart analysis of your inventory</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="prose prose-sm max-w-none text-foreground whitespace-pre-line">
-              {aiInsights}
-            </div>
-          </CardContent>
-        </Card>
-      )} */}
 
       {analytics && <AIChatWidget analytics={analytics} />}
     </div>

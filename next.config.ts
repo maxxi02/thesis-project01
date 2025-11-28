@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-
-    webpack: (config) => {
-    config.externals = [...(config.externals || []), { canvas: 'canvas' }];
+  webpack: (config) => {
+    config.externals = [...(config.externals || []), { canvas: "canvas" }];
     return config;
   },
   images: {
@@ -19,6 +18,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "calizamar.com",
+      },
+      {
+        protocol: "https",
+        hostname: "s3-media0.fl.yelpcdn.com",
       },
     ],
   },

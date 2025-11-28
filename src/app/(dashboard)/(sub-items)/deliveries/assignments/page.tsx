@@ -80,6 +80,7 @@ interface DeliveryAssignment {
   assignedDate: string;
   startedAt?: string;
   deliveredAt?: string;
+  archivedAt?: string; // Add this field
   estimatedDelivery?: string;
   markedBy: {
     name: string;
