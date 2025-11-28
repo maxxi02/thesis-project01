@@ -41,7 +41,7 @@ const rolePageAccess = {
     "/manage-users",
     "/settings",
   ],
-  cashier: ["/dashboard", "/manage-product", "/settings"],
+  cashier: ["/dashboard", "/manage-product", "/history", "/settings"],
   delivery: [
     "/deliveries",
     "/deliveries/overview",

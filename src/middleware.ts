@@ -39,6 +39,7 @@ const rolePageAccess = {
     "/deliveries/overview",
     "/deliveries/assignments",
     "/manage-product",
+    "/history", // Add this line
     "/settings",
   ],
   delivery: [
