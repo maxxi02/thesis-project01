@@ -76,7 +76,7 @@ interface ProductFormData {
   description?: string;
   image?: string;
 }
-
+  
 export interface BatangasCityAddress {
   id: string;
   barangay: string;

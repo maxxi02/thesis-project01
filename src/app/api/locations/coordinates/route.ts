@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch from your existing locations API
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/locations/batangas?allCities=true&coordinates=true`
+      `${process.env.NEXT_PUBLIC_APP_URL || "lgwhardware.online"}/api/locations/batangas?allCities=true&coordinates=true`
     );
 
     if (!response.ok) {
