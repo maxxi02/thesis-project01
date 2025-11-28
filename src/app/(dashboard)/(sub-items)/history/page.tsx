@@ -122,9 +122,6 @@ interface PaginationInfo {
 const ProductHistoryView = () => {
   // Generate stable IDs for form inputs
   const searchInputId = useId();
-  const startDateId = useId();
-  const endDateId = useId();
-  const categorySelectId = useId();
   const statusSelectId = useId();
 
   const [history, setHistory] = useState<ProductHistoryItem[]>([]);
@@ -138,10 +135,7 @@ const ProductHistoryView = () => {
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
 
   // User state
@@ -166,12 +160,6 @@ const ProductHistoryView = () => {
     });
   };
 
-  // Get unique categories from history
-  const categories = useMemo(() => {
-    const uniqueCategories = [...new Set(history.map((item) => item.category))];
-    return uniqueCategories.filter(Boolean).sort();
-  }, [history]);
-
   // Fetch product history
   const fetchHistory = useCallback(async () => {
     try {
@@ -182,10 +170,6 @@ const ProductHistoryView = () => {
       params.append("limit", "20");
       params.append("includeDeliveries", "true");
       if (searchTerm) params.append("search", searchTerm);
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      if (selectedCategory && selectedCategory !== "all")
-        params.append("category", selectedCategory);
       if (selectedStatus && selectedStatus !== "all")
         params.append("status", selectedStatus);
 
@@ -204,39 +188,31 @@ const ProductHistoryView = () => {
     } finally {
       setLoading(false);
     }
-  }, [
-    currentPage,
-    searchTerm,
-    startDate,
-    endDate,
-    selectedCategory,
-    selectedStatus,
-  ]);
+  }, [currentPage, searchTerm, selectedStatus]);
 
   // Fetch statistics
-const fetchStats = async () => {
-  try {
-    setStatsLoading(true);
-    const params = new URLSearchParams();
-    if (startDate) params.append("startDate", startDate);
-    if (endDate) params.append("endDate", endDate);
-    if (selectedCategory && selectedCategory !== "all")
-      params.append("category", selectedCategory);
+  const fetchStats = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      const params = new URLSearchParams();
+      if (searchTerm) params.append("search", searchTerm);
 
-    const response = await fetch(`/api/product-history?action=stats&${params.toString()}`);
-    const data = await response.json();
-    
-    if (response.ok) {
-      setStats(data);
-    } else {
-      console.error("Error fetching stats:", data.error);
+      const response = await fetch(
+        `/api/product-history?action=stats&${params.toString()}`
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        setStats(data);
+      } else {
+        console.error("Error fetching stats:", data.error);
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    } finally {
+      setStatsLoading(false);
     }
-  } catch (error) {
-    console.error("Error fetching stats:", error);
-  } finally {
-    setStatsLoading(false);
-  }
-};
+  }, [searchTerm]);
 
   // Clear product history (admin only)
   const clearProductHistory = async () => {
@@ -316,9 +292,6 @@ const fetchStats = async () => {
   // Clear all filters
   const clearFilters = () => {
     setSearchTerm("");
-    setStartDate("");
-    setEndDate("");
-    setSelectedCategory("all");
     setSelectedStatus("all");
     setCurrentPage(1);
   };
@@ -327,24 +300,26 @@ const fetchStats = async () => {
   useEffect(() => {
     fetchHistory();
     fetchStats();
-  }, []);
+  }, [fetchHistory, fetchStats]);
 
   // Refetch when filters change
   useEffect(() => {
     const timer = setTimeout(() => {
       setCurrentPage(1);
-      fetchHistory();
       fetchStats();
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, startDate, endDate, selectedCategory, selectedStatus, fetchHistory]);
+  }, [searchTerm, selectedStatus, fetchStats]);
 
   // Handle pagination
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    fetchHistory();
   };
+
+  useEffect(() => {
+    fetchHistory();
+  }, [currentPage, fetchHistory]);
 
   // Get status badge variant
   const getStatusVariant = (status: string) => {
@@ -377,7 +352,12 @@ const fetchStats = async () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportToCSV} disabled={!history.length}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportToCSV}
+            disabled={!history.length}
+          >
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -417,7 +397,9 @@ const fetchStats = async () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Monthly Revenue
+            </CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -441,7 +423,9 @@ const fetchStats = async () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Weekly Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Weekly Revenue
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -465,7 +449,9 @@ const fetchStats = async () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Sale Value</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Avg Sale Value
+            </CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -478,8 +464,10 @@ const fetchStats = async () => {
               <>
                 <div className="text-2xl font-bold">
                   {formatCurrency(
-                    stats?.monthlyStats?.totalTransactions && stats.monthlyStats.totalSales
-                      ? stats.monthlyStats.totalSales / stats.monthlyStats.totalTransactions
+                    stats?.monthlyStats?.totalTransactions &&
+                      stats.monthlyStats.totalSales
+                      ? stats.monthlyStats.totalSales /
+                          stats.monthlyStats.totalTransactions
                       : 0
                   )}
                 </div>
@@ -491,7 +479,9 @@ const fetchStats = async () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Yearly Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Yearly Revenue
+            </CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -528,68 +518,34 @@ const fetchStats = async () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label htmlFor={searchInputId} className="text-sm font-medium block">
+              <label
+                htmlFor={searchInputId}
+                className="text-sm font-medium block"
+              >
                 Search Products
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id={searchInputId}
-                  placeholder="Search products..."
+                  placeholder="Search by name, SKU, or category..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Search by product name, SKU, or category
+              </p>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor={startDateId} className="text-sm font-medium block">
-                Start Date
-              </label>
-              <Input
-                id={startDateId}
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor={endDateId} className="text-sm font-medium block">
-                End Date
-              </label>
-              <Input
-                id={endDateId}
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor={categorySelectId} className="text-sm font-medium block">
-                Category
-              </label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger id={categorySelectId}>
-                  <SelectValue placeholder="All categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All categories</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor={statusSelectId} className="text-sm font-medium block">
+              <label
+                htmlFor={statusSelectId}
+                className="text-sm font-medium block"
+              >
                 Status
               </label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -735,7 +691,10 @@ const fetchStats = async () => {
                           {formatCurrency(item.totalAmount)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getSaleTypeVariant(item.saleType)} className="capitalize">
+                          <Badge
+                            variant={getSaleTypeVariant(item.saleType)}
+                            className="capitalize"
+                          >
                             {item.saleType}
                           </Badge>
                         </TableCell>
@@ -744,7 +703,8 @@ const fetchStats = async () => {
                             variant={getStatusVariant(item.status)}
                             className="capitalize"
                           >
-                            {(item.status === "completed" || item.status === "delivered") && (
+                            {(item.status === "completed" ||
+                              item.status === "delivered") && (
                               <CheckCircle className="h-3 w-3 mr-1" />
                             )}
                             {item.status}
@@ -849,11 +809,17 @@ const fetchStats = async () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Units Sold:</span>
-                      <span className="font-medium">{category.totalQuantity}</span>
+                      <span className="font-medium">
+                        {category.totalQuantity}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Transactions:</span>
-                      <span className="font-medium">{category.transactionCount}</span>
+                      <span className="text-muted-foreground">
+                        Transactions:
+                      </span>
+                      <span className="font-medium">
+                        {category.transactionCount}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -869,8 +835,8 @@ const fetchStats = async () => {
           <DialogHeader>
             <DialogTitle>Clear Product History</DialogTitle>
             <DialogDescription>
-              This action will permanently delete all sales and delivery history records.
-              This cannot be undone. Are you sure you want to continue?
+              This action will permanently delete all sales and delivery history
+              records. This cannot be undone. Are you sure you want to continue?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
