@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useId, useCallback } from "react";
+import { useState, useEffect, useId, useCallback } from "react";
 import {
   Card,
   CardContent,

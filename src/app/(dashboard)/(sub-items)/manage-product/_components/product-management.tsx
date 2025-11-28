@@ -49,6 +49,7 @@ import { getServerSession } from "@/better-auth/action";
 import { ObjectDetectionModal } from "@/lib/tensorflow/object-detection-model";
 import { CustomModal } from "./custom-modal";
 import { CustomDialog } from "./custom-dialog";
+import { CoordinatesResponse } from "@/types/coordinates";
 
 interface DeliveryPersonnel {
   id: string;
@@ -101,7 +102,9 @@ export default function ProductManagement() {
   const [userSession, setUserSession] = useState<Session | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [deliveryPersonnel, setDeliveryPersonnel] = useState<DeliveryPersonnel[]>([]);
+  const [deliveryPersonnel, setDeliveryPersonnel] = useState<
+    DeliveryPersonnel[]
+  >([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showShipModal, setShowShipModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -109,12 +112,15 @@ export default function ProductManagement() {
   const [showSellModal, setShowSellModal] = useState(false);
   const [showAddMethodModal, setShowAddMethodModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
-  const [showObjectDetectionModal, setShowObjectDetectionModal] = useState(false);
+  const [showObjectDetectionModal, setShowObjectDetectionModal] =
+    useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [addressInput, setAddressInput] = useState("");
-  const [filteredAddresses, setFilteredAddresses] = useState<BatangasCityAddress[]>([]);
+  const [filteredAddresses, setFilteredAddresses] = useState<
+    BatangasCityAddress[]
+  >([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState("cards");
   const [mounted, setMounted] = useState(false);
@@ -160,7 +166,9 @@ export default function ProductManagement() {
   // BUG FIX: Get current date in local timezone for proper date comparisons
   const getCurrentLocalDate = () => {
     const now = new Date();
-    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .split("T")[0];
   };
 
   // BUG FIX: Check if selected date is in the past
@@ -175,17 +183,17 @@ export default function ProductManagement() {
   // BUG FIX: Get minimum time for time input based on selected date
   const getMinTime = () => {
     if (!shipmentData.estimatedDelivery) return "00:00";
-    
-    const selectedDate = new Date(shipmentData.estimatedDelivery.split('T')[0]);
+
+    const selectedDate = new Date(shipmentData.estimatedDelivery.split("T")[0]);
     const today = new Date();
-    
+
     // If selected date is today, return current time, otherwise return "00:00"
     if (selectedDate.toDateString() === today.toDateString()) {
-      const hours = today.getHours().toString().padStart(2, '0');
-      const minutes = today.getMinutes().toString().padStart(2, '0');
+      const hours = today.getHours().toString().padStart(2, "0");
+      const minutes = today.getMinutes().toString().padStart(2, "0");
       return `${hours}:${minutes}`;
     }
-    
+
     return "00:00";
   };
 
@@ -228,7 +236,7 @@ export default function ProductManagement() {
         setLoading(false);
       }
     };
-    
+
     if (mounted) {
       fetchSession();
     }
@@ -448,23 +456,23 @@ export default function ProductManagement() {
   // BUG FIX: Improved estimated delivery date/time handling
   const handleEstimatedDeliveryChange = (date: string, time: string) => {
     let estimatedDelivery = "";
-    
+
     if (date) {
       if (isDateInPast(date)) {
         toast.error("Cannot set delivery date in the past");
         return;
       }
-      
+
       if (time) {
         estimatedDelivery = `${date}T${time}`;
       } else {
         estimatedDelivery = `${date}T00:00`;
       }
     }
-    
+
     setShipmentData({
       ...shipmentData,
-      estimatedDelivery
+      estimatedDelivery,
     });
   };
 
@@ -661,10 +669,12 @@ export default function ProductManagement() {
 
     // BUG FIX: Validate estimated delivery date
     if (shipmentData.estimatedDelivery) {
-      const selectedDate = new Date(shipmentData.estimatedDelivery.split('T')[0]);
+      const selectedDate = new Date(
+        shipmentData.estimatedDelivery.split("T")[0]
+      );
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       if (selectedDate < today) {
         toast.error("Estimated delivery date cannot be in the past");
         return;
@@ -683,34 +693,51 @@ export default function ProductManagement() {
         return;
       }
 
-      const selectedAddress = apiLocations.find(
-        (addr: BatangasCityAddress) =>
-          addr.fullAddress === shipmentData.destination
+      // Fetch coordinates from API
+      console.log(
+        "📍 [SHIP] Fetching coordinates for:",
+        shipmentData.destination
       );
+      const coordsResponse = await fetch("/api/locations/coordinates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: shipmentData.destination }),
+      });
+
+      const coordsData: CoordinatesResponse = await coordsResponse.json();
+      console.log("📍 [SHIP] Coordinates API response:", coordsData);
+
+      if (!coordsData.success) {
+        console.warn("⚠️ [SHIP] No coordinates found, proceeding without them");
+      }
+
+      const shipmentPayload = {
+        quantity: parseInt(shipmentData.quantity),
+        deliveryPersonnel: {
+          id: driver.id,
+          fullName: driver.name,
+          email: driver.email,
+          fcmToken: driver.fcmToken,
+        },
+        destination: shipmentData.destination,
+        coordinates: coordsData.coordinates || null,
+        note: shipmentData.note,
+        estimatedDelivery: shipmentData.estimatedDelivery || null,
+        markedBy: {
+          name: userSession?.user?.name || "Admin",
+          email: userSession?.user?.email || "admin@example.com",
+          role: userSession?.user?.role || "admin",
+        },
+      };
+
+      console.log("📦 [SHIP] Sending shipment request:", shipmentPayload);
 
       const response = await fetch(
         `/api/products/${selectedProduct._id}/to-ship`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            quantity: parseInt(shipmentData.quantity),
-            deliveryPersonnel: {
-              id: driver.id,
-              fullName: driver.name,
-              email: driver.email,
-              fcmToken: driver.fcmToken,
-            },
-            destination: shipmentData.destination,
-            coordinates: selectedAddress?.coordinates || null,
-            note: shipmentData.note,
-            estimatedDelivery: shipmentData.estimatedDelivery || null,
-            markedBy: {
-              name: userSession?.user?.name || "Admin",
-              email: userSession?.user?.email || "admin@example.com",
-              role: userSession?.user?.role || "admin",
-            },
-          }),
+          body: JSON.stringify(shipmentPayload),
         }
       );
 
@@ -721,10 +748,12 @@ export default function ProductManagement() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("❌ [SHIP] Shipment failed:", errorData);
         throw new Error(errorData.error || "Failed to mark as to ship");
       }
 
       const result = await response.json();
+      console.log("✅ [SHIP] Shipment confirmed successfully:", result);
 
       setShowShipModal(false);
       setShipmentData({
@@ -734,9 +763,10 @@ export default function ProductManagement() {
         driverId: "",
         estimatedDelivery: "",
       });
-      setAddressInput(""); // BUG FIX: Clear address input
+      setAddressInput("");
 
       // Send notification
+      console.log("📱 [NOTIFICATION] Sending shipment notification");
       fetch("/api/notifications/newShipment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -753,7 +783,7 @@ export default function ProductManagement() {
             },
             customerAddress: {
               destination: shipmentData.destination,
-              coordinates: selectedAddress?.coordinates || null,
+              coordinates: coordsData.coordinates || null,
             },
             deliveryPersonnel: {
               id: driver.id,
@@ -772,7 +802,9 @@ export default function ProductManagement() {
             },
           },
         }),
-      }).catch((err) => console.error("Notification error:", err));
+      }).catch((err) =>
+        console.error("❌ [NOTIFICATION] Notification error:", err)
+      );
 
       NotificationHelper.triggerNotification({
         sound: true,
@@ -789,7 +821,7 @@ export default function ProductManagement() {
 
       await fetchProducts();
     } catch (error) {
-      console.error("Error confirming shipment:", error);
+      console.error("❌ [SHIP] Error confirming shipment:", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to confirm shipment"
       );
@@ -1862,10 +1894,13 @@ export default function ProductManagement() {
         maxWidth="max-w-lg"
         footer={
           <>
-            <Button variant="outline" onClick={() => {
-              setShowShipModal(false);
-              setAddressInput(""); // BUG FIX: Clear address input when closing
-            }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowShipModal(false);
+                setAddressInput(""); // BUG FIX: Clear address input when closing
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -2036,7 +2071,7 @@ export default function ProductManagement() {
               maxLength={100}
             />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="estimatedDeliveryDate">
@@ -2048,13 +2083,14 @@ export default function ProductManagement() {
                 value={shipmentData.estimatedDelivery?.split("T")[0] || ""}
                 onChange={(e) => {
                   const date = e.target.value;
-                  const time = shipmentData.estimatedDelivery?.split("T")[1] || "00:00";
-                  
+                  const time =
+                    shipmentData.estimatedDelivery?.split("T")[1] || "00:00";
+
                   if (date && isDateInPast(date)) {
                     toast.error("Cannot set delivery date in the past");
                     return;
                   }
-                  
+
                   handleEstimatedDeliveryChange(date, time);
                 }}
                 min={getCurrentLocalDate()} // BUG FIX: Use current local date
@@ -2070,7 +2106,9 @@ export default function ProductManagement() {
                 value={shipmentData.estimatedDelivery?.split("T")[1] || ""}
                 onChange={(e) => {
                   const time = e.target.value;
-                  const date = shipmentData.estimatedDelivery?.split("T")[0] || getCurrentLocalDate();
+                  const date =
+                    shipmentData.estimatedDelivery?.split("T")[0] ||
+                    getCurrentLocalDate();
                   handleEstimatedDeliveryChange(date, time);
                 }}
                 min={getMinTime()} // BUG FIX: Dynamic min time based on selected date
