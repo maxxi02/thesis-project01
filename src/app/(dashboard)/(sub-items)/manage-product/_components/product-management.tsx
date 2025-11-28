@@ -91,6 +91,30 @@ export interface BatangasCityAddress {
   };
 }
 
+// Hardcoded Batangas streets with coordinates
+const BATANGAS_STREETS: BatangasCityAddress[] = [
+  { id: "1", barangay: "Poblacion", city: "Batangas City", province: "Batangas", fullAddress: "Rizal Avenue, Poblacion, Batangas City", coordinates: { lat: 13.7565, lng: 121.0583 } },
+  { id: "2", barangay: "Sto. Domingo", city: "Batangas City", province: "Batangas", fullAddress: "Kumintang Ibaba, Sto. Domingo, Batangas City", coordinates: { lat: 13.7592, lng: 121.0618 } },
+  { id: "3", barangay: "Bolbok", city: "Batangas City", province: "Batangas", fullAddress: "National Highway, Bolbok, Batangas City", coordinates: { lat: 13.7514, lng: 121.0657 } },
+  { id: "4", barangay: "Balagtas", city: "Batangas City", province: "Batangas", fullAddress: "Balagtas Boulevard, Batangas City", coordinates: { lat: 13.7589, lng: 121.0594 } },
+  { id: "5", barangay: "Sta. Clara", city: "Batangas City", province: "Batangas", fullAddress: "Sta. Clara Road, Batangas City", coordinates: { lat: 13.7631, lng: 121.0556 } },
+  { id: "6", barangay: "Marawoy", city: "Lipa City", province: "Batangas", fullAddress: "Marawoy, Lipa City, Batangas", coordinates: { lat: 13.9412, lng: 121.1621 } },
+  { id: "7", barangay: "Sabang", city: "Lipa City", province: "Batangas", fullAddress: "Sabang, Lipa City, Batangas", coordinates: { lat: 13.9398, lng: 121.1594 } },
+  { id: "8", barangay: "Poblacion", city: "Lipa City", province: "Batangas", fullAddress: "J.P. Laurel Highway, Poblacion, Lipa City", coordinates: { lat: 13.9425, lng: 121.1633 } },
+  { id: "9", barangay: "Antipolo", city: "Batangas City", province: "Batangas", fullAddress: "Antipolo del Norte, Batangas City", coordinates: { lat: 13.7678, lng: 121.0722 } },
+  { id: "10", barangay: "San Jose", city: "Bauan", province: "Batangas", fullAddress: "San Jose, Bauan, Batangas", coordinates: { lat: 13.7917, lng: 121.0083 } },
+  { id: "11", barangay: "Poblacion", city: "Bauan", province: "Batangas", fullAddress: "Poblacion 1, Bauan, Batangas", coordinates: { lat: 13.7925, lng: 121.0089 } },
+  { id: "12", barangay: "San Pedro", city: "Bauan", province: "Batangas", fullAddress: "San Pedro, Bauan, Batangas", coordinates: { lat: 13.7942, lng: 121.0125 } },
+  { id: "13", barangay: "Pallocan", city: "Batangas City", province: "Batangas", fullAddress: "Pallocan West, Batangas City", coordinates: { lat: 13.7417, lng: 121.0833 } },
+  { id: "14", barangay: "Gulod", city: "Batangas City", province: "Batangas", fullAddress: "Gulod Labac, Batangas City", coordinates: { lat: 13.7333, lng: 121.0917 } },
+  { id: "15", barangay: "Wawa", city: "Batangas City", province: "Batangas", fullAddress: "Wawa, Batangas City", coordinates: { lat: 13.7264, lng: 121.0986 } },
+  { id: "16", barangay: "Calicanto", city: "Batangas City", province: "Batangas", fullAddress: "Calicanto, Batangas City", coordinates: { lat: 13.7511, lng: 121.0569 } },
+  { id: "17", barangay: "Kumintang", city: "Batangas City", province: "Batangas", fullAddress: "Kumintang Ilaya, Batangas City", coordinates: { lat: 13.7611, lng: 121.0639 } },
+  { id: "18", barangay: "Cuta", city: "Batangas City", province: "Batangas", fullAddress: "Cuta East, Batangas City", coordinates: { lat: 13.7681, lng: 121.0681 } },
+  { id: "19", barangay: "Sta. Rita", city: "Batangas City", province: "Batangas", fullAddress: "Sta. Rita Karsada, Batangas City", coordinates: { lat: 13.7736, lng: 121.0736 } },
+  { id: "20", barangay: "Alangilan", city: "Batangas City", province: "Batangas", fullAddress: "Alangilan, Batangas City", coordinates: { lat: 13.7783, lng: 121.0783 } }
+];
+
 export default function ProductManagement() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const MAX_PRICE = 500000;
@@ -117,11 +141,6 @@ export default function ProductManagement() {
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [addressInput, setAddressInput] = useState("");
-  const [filteredAddresses, setFilteredAddresses] = useState<
-    BatangasCityAddress[]
-  >([]);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState("cards");
   const [mounted, setMounted] = useState(false);
   const [newCategory, setNewCategory] = useState("");
@@ -159,7 +178,6 @@ export default function ProductManagement() {
     image: "",
   });
 
-  const [apiLocations, setApiLocations] = useState<BatangasCityAddress[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
 
@@ -247,51 +265,6 @@ export default function ProductManagement() {
       }
     };
   }, [mounted]); // BUG FIX: Added mounted dependency
-
-  // Load locations on mount
-  useEffect(() => {
-    const loadLocations = async () => {
-      try {
-        setLoading(true);
-        console.log("📍 Fetching locations...");
-
-        const response = await fetch(
-          "/api/locations/batangas?allCities=true&coordinates=true"
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("❌ API Error:", errorText);
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.success && data.locations?.length > 0) {
-          setApiLocations(data.locations);
-          console.log(`✅ Loaded ${data.count} locations`);
-        } else {
-          console.warn("⚠️ No locations in response:", data);
-          setApiLocations([]);
-          toast.error("No locations available");
-        }
-      } catch (error) {
-        console.error("❌ Failed to fetch locations:", error);
-        setApiLocations([]);
-        toast.error(
-          `Failed to load locations: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (mounted) {
-      loadLocations();
-    }
-  }, [mounted]);
 
   // Filter products based on search term
   const filteredProducts = products.filter(
@@ -430,26 +403,6 @@ export default function ProductManagement() {
     } catch (error) {
       console.error("Failed to fetch delivery personnel:", error);
       toast.error("Failed to fetch delivery personnel");
-    }
-  };
-
-  // Handle address input changes
-  const handleAddressChange = (value: string) => {
-    setAddressInput(value);
-    setShipmentData({ ...shipmentData, destination: value });
-
-    if (value.length > 1 && apiLocations.length > 0) {
-      const filtered = apiLocations.filter(
-        (addr: BatangasCityAddress) =>
-          addr.city.toLowerCase().includes(value.toLowerCase()) ||
-          addr.fullAddress.toLowerCase().includes(value.toLowerCase()) ||
-          addr.barangay.toLowerCase().includes(value.toLowerCase())
-      );
-      setFilteredAddresses(filtered.slice(0, 5));
-      setShowDropdown(true);
-    } else {
-      setFilteredAddresses([]);
-      setShowDropdown(false);
     }
   };
 
@@ -655,7 +608,6 @@ export default function ProductManagement() {
       driverId: "",
       estimatedDelivery: "",
     });
-    setAddressInput(""); // BUG FIX: Reset address input
     setShowShipModal(true);
   };
 
@@ -693,23 +645,14 @@ export default function ProductManagement() {
         return;
       }
 
-      // Fetch coordinates from API
-      console.log(
-        "📍 [SHIP] Fetching coordinates for:",
-        shipmentData.destination
+      // Get coordinates from hardcoded data
+      const selectedAddress = BATANGAS_STREETS.find(
+        (addr) => addr.fullAddress === shipmentData.destination
       );
-      const coordsResponse = await fetch("/api/locations/coordinates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: shipmentData.destination }),
-      });
+      const coordinates = selectedAddress?.coordinates || null;
 
-      const coordsData: CoordinatesResponse = await coordsResponse.json();
-      console.log("📍 [SHIP] Coordinates API response:", coordsData);
-
-      if (!coordsData.success) {
-        console.warn("⚠️ [SHIP] No coordinates found, proceeding without them");
-      }
+      console.log("📍 [SHIP] Selected address:", selectedAddress);
+      console.log("📍 [SHIP] Coordinates:", coordinates);
 
       const shipmentPayload = {
         quantity: parseInt(shipmentData.quantity),
@@ -720,7 +663,7 @@ export default function ProductManagement() {
           fcmToken: driver.fcmToken,
         },
         destination: shipmentData.destination,
-        coordinates: coordsData.coordinates || null,
+        coordinates: coordinates,
         note: shipmentData.note,
         estimatedDelivery: shipmentData.estimatedDelivery || null,
         markedBy: {
@@ -763,7 +706,6 @@ export default function ProductManagement() {
         driverId: "",
         estimatedDelivery: "",
       });
-      setAddressInput("");
 
       // Send notification
       console.log("📱 [NOTIFICATION] Sending shipment notification");
@@ -783,7 +725,7 @@ export default function ProductManagement() {
             },
             customerAddress: {
               destination: shipmentData.destination,
-              coordinates: coordsData.coordinates || null,
+              coordinates: coordinates,
             },
             deliveryPersonnel: {
               id: driver.id,
@@ -1887,7 +1829,6 @@ export default function ProductManagement() {
         isOpen={showShipModal}
         onClose={() => {
           setShowShipModal(false);
-          setAddressInput(""); // BUG FIX: Clear address input when closing
         }}
         title="📦 Ship Product"
         description={`Configure shipment details for ${selectedProduct?.name}`}
@@ -1898,7 +1839,6 @@ export default function ProductManagement() {
               variant="outline"
               onClick={() => {
                 setShowShipModal(false);
-                setAddressInput(""); // BUG FIX: Clear address input when closing
               }}
             >
               Cancel
@@ -1983,43 +1923,34 @@ export default function ProductManagement() {
             </p>
           </div>
 
-          <div className="grid gap-2 relative">
+          {/* UPDATED: Destination Address as Dropdown */}
+          <div className="grid gap-2">
             <Label htmlFor="destination">Destination Address</Label>
-            <div className="relative">
-              <Input
-                id="destination"
-                placeholder="Start typing city or street..."
-                value={addressInput}
-                onChange={(e) => handleAddressChange(e.target.value)}
-                onFocus={() => addressInput.length > 1 && setShowDropdown(true)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-              />
-              {showDropdown && filteredAddresses.length > 0 && (
-                <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-md shadow-lg max-h-60 overflow-auto">
-                  {filteredAddresses.map((address) => (
-                    <li
-                      key={address.id}
-                      className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0"
-                      onMouseDown={() => {
-                        setAddressInput(address.fullAddress);
-                        setShipmentData({
-                          ...shipmentData,
-                          destination: address.fullAddress,
-                        });
-                        setShowDropdown(false);
-                      }}
-                    >
-                      <div className="font-medium text-sm">
-                        {address.barangay}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {address.city}, {address.province}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <Select
+              value={shipmentData.destination}
+              onValueChange={(value) =>
+                setShipmentData({ ...shipmentData, destination: value })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select delivery address" />
+              </SelectTrigger>
+              <SelectContent>
+                {BATANGAS_STREETS.map((address) => (
+                  <SelectItem key={address.id} value={address.fullAddress}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{address.fullAddress}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {address.barangay}, {address.city}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Select from pre-defined Batangas delivery locations
+            </p>
           </div>
 
           <div className="grid gap-2">
@@ -2142,6 +2073,13 @@ export default function ProductManagement() {
                     Number.parseInt(shipmentData.quantity)}{" "}
                   units
                 </div>
+
+                {shipmentData.destination && (
+                  <>
+                    <div className="text-muted-foreground">Destination:</div>
+                    <div className="font-medium">{shipmentData.destination}</div>
+                  </>
+                )}
               </div>
             </div>
           )}

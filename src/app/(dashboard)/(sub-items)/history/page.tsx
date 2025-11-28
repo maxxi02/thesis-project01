@@ -296,7 +296,7 @@ const ProductHistoryView = () => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, fetchStats]); 
+  }, [searchTerm, fetchStats]);
   // Handle pagination
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
