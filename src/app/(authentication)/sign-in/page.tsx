@@ -30,7 +30,7 @@ export default function SigninPage() {
         <Image
           width={500}
           height={500}
-          src="/https://s3-media0.fl.yelpcdn.com/bphoto/lyMB4rxrZ6dBb_ORWRXrEw/1000s.jpg"
+          src="/close-up-warehouse-view.jpg"
           alt="Image"
           className="absolute inset-0 h-full w-full object-cover"
         />
